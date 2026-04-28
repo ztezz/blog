@@ -1,0 +1,36 @@
+{
+  "name": "cosmogis",
+  "version": "1.0.0",
+  "description": "CosmoGIS Website",
+  "main": "server/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite build && node server/index.js"
+  },
+  "dependencies": {
+    "@react-three/drei": "^9.96.1",
+    "@react-three/fiber": "^8.15.12",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "lucide-react": "^0.294.0",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.11.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@types/three": "^0.160.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.0"
+  }
+}
