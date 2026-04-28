@@ -47,7 +47,7 @@ const Mailbox: React.FC = () => {
           </h1>
         </div>
 
-        <div className="bg-white dark:bg-space-800 rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-lg dark:shadow-2xl">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-lg dark:shadow-2xl">
           {loading ? (
              <div className="p-8 text-center text-slate-500 dark:text-gray-400">Đang tải tin nhắn...</div>
           ) : messages.length === 0 ? (
@@ -61,7 +61,7 @@ const Mailbox: React.FC = () => {
                   <div key={msg.id} className="p-6 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
                     <div className="flex flex-col md:flex-row justify-between mb-2">
                        <div className="flex items-center space-x-3 mb-2 md:mb-0">
-                         <div className="w-10 h-10 rounded-full bg-sky-100 dark:bg-space-neon/10 text-sky-600 dark:text-space-neon flex items-center justify-center font-bold">
+                         <div className="w-10 h-10 rounded-full bg-sky-100 dark:bg-cyan-400/10 text-sky-600 dark:text-cyan-400 flex items-center justify-center font-bold">
                            {msg.name.charAt(0).toUpperCase()}
                          </div>
                          <div>
@@ -81,7 +81,7 @@ const Mailbox: React.FC = () => {
                        </div>
                     </div>
                     <div className="pl-13 md:pl-13 mt-2">
-                       <h5 className="text-sky-600 dark:text-space-neon font-medium text-sm mb-2">{msg.subject}</h5>
+                       <h5 className="text-sky-600 dark:text-cyan-400 font-medium text-sm mb-2">{msg.subject}</h5>
                        <p className="text-slate-600 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-black/20 p-4 rounded-lg border border-slate-200 dark:border-white/5">
                          {msg.message}
                        </p>

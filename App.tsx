@@ -51,7 +51,7 @@ const App: React.FC = () => {
           {/* 404 Fallback */}
           <Route path="*" element={
             <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4">
-              <h1 className="text-6xl font-display font-bold text-space-neon mb-4">404</h1>
+              <h1 className="text-6xl font-display font-bold text-cyan-400 mb-4">404</h1>
               <p className="text-xl text-gray-300 mb-8">Trang bạn tìm kiếm đã bị hố đen nuốt chửng.</p>
               <a href="/" className="px-6 py-3 bg-white/10 border border-white/20 rounded hover:bg-white/20 transition-colors text-white">
                 Quay về Trạm Không Gian (Trang chủ)

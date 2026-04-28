@@ -16,10 +16,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   
-  // Theme State - Logic Tự Động Theo Giờ (Không lưu localStorage)
+  // Theme State - Với localStorage persistence
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window !== 'undefined') {
-        // Luôn áp dụng logic tự động theo giờ hệ thống khi khởi tạo
+        // Kiểm tra localStorage trước
+        const savedTheme = localStorage.getItem('theme-preference');
+        if (savedTheme === 'dark' || savedTheme === 'light') {
+            return savedTheme;
+        }
+        // Nếu không có, dùng logic tự động theo giờ
         const currentHour = new Date().getHours();
         // Quy định: 6h sáng đến 18h tối (6PM) là Ban Ngày -> Light Mode
         const isDayTime = currentHour >= 6 && currentHour < 18;
@@ -28,15 +33,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     return 'dark'; // Fallback server-side
   });
 
+  const isAdminPage = location.pathname.startsWith('/admin');
+
   // Apply Theme Effect
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
+      root.style.backgroundColor = '#020617'; // Slate 950 - Darker background
+      root.style.color = '#f8fafc'; // Slate 50 - Off-white text
     } else {
       root.classList.remove('dark');
+      root.style.backgroundColor = '#f8fafc'; // Slate 50 - Light background
+      root.style.color = '#0f172a'; // Slate 900 - Dark text
     }
-    // Không lưu vào localStorage nữa
+    // Lưu theme vào localStorage
+    localStorage.setItem('theme-preference', theme);
   }, [theme]);
 
   const toggleTheme = () => {
@@ -102,7 +114,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     // Mobile Item Styles
     const mobileBaseClass = `flex items-center w-full py-3 px-3 rounded-md text-base font-medium transition-all duration-300 ${depth > 0 ? 'pl-8 text-sm' : ''}`;
     const mobileHoverClass = "text-slate-600 hover:text-sky-600 hover:bg-sky-50 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/10"; 
-    const mobileActiveClass = "text-sky-700 bg-sky-100 border-l-2 border-sky-500 dark:text-space-neon dark:bg-space-neon/10 dark:border-space-neon";
+    const mobileActiveClass = "text-sky-700 bg-sky-100 border-l-2 border-sky-500 dark:text-cyan-400 dark:bg-cyan-400/10 dark:border-cyan-400";
 
     return (
       <div key={item.id} className="w-full">
@@ -140,13 +152,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
   };
 
-  if (!settings) return <div className="min-h-screen bg-sky-50 dark:bg-space-900 transition-colors duration-500"></div>; // Loading state
+  if (!settings) return <div className="min-h-screen bg-sky-50 dark:bg-slate-950 transition-colors duration-500"></div>; // Loading state
 
   return (
-    <div className="min-h-screen relative flex flex-col font-sans text-slate-800 dark:text-gray-100 overflow-x-hidden transition-colors duration-500 bg-sky-50 dark:bg-space-900">
+    <div className="min-h-screen relative flex flex-col font-sans text-slate-800 dark:text-gray-100 overflow-x-hidden transition-colors duration-500 bg-sky-50 dark:bg-slate-950">
       
-      {/* Background Logic */}
-      {theme === 'dark' ? <StarBackground /> : <SkyBackground />}
+      {/* Background Logic - Hidden on Admin pages to avoid layout clutter */}
+      {!isAdminPage && (theme === 'dark' ? <StarBackground /> : <SkyBackground />)}
       
       {/* Background Layer 2: Cosmic Nebula Glows (Only in Dark Mode) */}
       <div className={`fixed inset-0 pointer-events-none z-0 overflow-hidden transition-opacity duration-1000 ${theme === 'dark' ? 'opacity-100' : 'opacity-0'}`}>
@@ -156,23 +168,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
       
       {/* Header */}
-      <header className="fixed w-full z-50 top-0 bg-white/70 dark:bg-space-900/60 backdrop-blur-lg border-b border-slate-200 dark:border-white/10 shadow-lg transition-all duration-300 supports-[backdrop-filter]:bg-white/40 dark:supports-[backdrop-filter]:bg-space-900/40">
+      <header className="fixed w-full z-50 top-0 bg-white/70 dark:bg-slate-900/60 backdrop-blur-lg border-b border-slate-200 dark:border-white/10 shadow-lg transition-all duration-300 supports-[backdrop-filter]:bg-white/40 dark:supports-[backdrop-filter]:bg-slate-900/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             {/* Logo */}
             <Link to="/" className="flex items-center space-x-3 group relative">
-              <div className="absolute inset-0 bg-sky-400/20 dark:bg-space-neon/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="absolute inset-0 bg-sky-400/20 dark:bg-cyan-400/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               {settings.logoUrl ? (
                 <div className="relative z-10 transition-transform duration-300 group-hover:scale-105">
                   <img src={settings.logoUrl} alt="Logo" className="h-10 w-auto object-contain" />
                 </div>
               ) : (
-                <div className="relative z-10 bg-gradient-to-br from-sky-500 to-blue-600 dark:from-space-neon dark:to-blue-600 p-2 rounded-xl shadow-lg group-hover:shadow-space-neon/50 transition-all duration-300">
+                <div className="relative z-10 bg-gradient-to-br from-sky-500 to-blue-600 dark:from-cyan-400 dark:to-blue-600 p-2 rounded-xl shadow-lg group-hover:shadow-cyan-400/50 transition-all duration-300">
                   <Globe className="text-white" size={24} />
                 </div>
               )}
               <span className="relative z-10 font-display font-bold text-2xl tracking-wider text-slate-800 dark:text-white">
-                {settings.siteNamePrefix}<span className="text-sky-600 dark:text-space-neon">{settings.siteNameSuffix}</span>
+                {settings.siteNamePrefix}<span className="text-sky-600 dark:text-cyan-400">{settings.siteNameSuffix}</span>
               </span>
             </Link>
 
@@ -203,7 +215,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
                     {item.children && item.children.length > 0 && (
                         <div className="absolute left-0 mt-0 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-4 pt-4 z-50">
-                        <div className="bg-white/95 dark:bg-space-800/90 border border-slate-200 dark:border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+                        <div className="bg-white/95 dark:bg-slate-800/90 border border-slate-200 dark:border-white/10 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)] overflow-hidden backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
                             {item.children.map((child) => (
                             <div key={child.id} className="border-b border-slate-100 dark:border-white/5 last:border-0">
                                 {child.isExternal ? (
@@ -254,7 +266,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
 
         {/* Mobile Nav */}
-        <div className={`md:hidden bg-white/95 dark:bg-space-900/95 backdrop-blur-xl border-b border-slate-200 dark:border-white/10 overflow-hidden transition-all duration-300 ease-in-out ${isMenuOpen ? 'max-h-[80vh] opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className={`md:hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200 dark:border-white/10 overflow-hidden transition-all duration-300 ease-in-out ${isMenuOpen ? 'max-h-[80vh] opacity-100' : 'max-h-0 opacity-0'}`}>
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 overflow-y-auto max-h-[75vh]">
               {settings.navigation.map(item => renderMobileNavItem(item))}
             </div>
@@ -267,14 +279,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </main>
 
       {/* Footer */}
-      <footer className="z-10 bg-white/80 dark:bg-space-900/80 backdrop-blur-md border-t border-slate-200 dark:border-white/10 mt-12 py-12 relative overflow-hidden">
+      <footer className="z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-white/10 mt-12 py-12 relative overflow-hidden">
         {/* Footer Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-1 bg-gradient-to-r from-transparent via-sky-400 dark:via-space-neon to-transparent opacity-50"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-1 bg-gradient-to-r from-transparent via-sky-400 dark:via-cyan-400 to-transparent opacity-50"></div>
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
           <div>
              <span className="font-display font-bold text-xl tracking-wider text-slate-800 dark:text-white block mb-4">
-                {settings.siteNamePrefix}<span className="text-sky-600 dark:text-space-neon">{settings.siteNameSuffix}</span>
+                {settings.siteNamePrefix}<span className="text-sky-600 dark:text-cyan-400">{settings.siteNameSuffix}</span>
               </span>
             <p className="text-slate-500 dark:text-gray-400 leading-relaxed">
               {settings.footerDescription}
@@ -282,31 +294,31 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
           <div>
             <h3 className="text-slate-800 dark:text-white font-bold mb-4 uppercase tracking-wider flex items-center">
-              <span className="w-1 h-4 bg-sky-500 dark:bg-space-neon mr-2 rounded-full shadow-[0_0_10px_#38bdf8]"></span>
+              <span className="w-1 h-4 bg-sky-500 dark:bg-cyan-400 mr-2 rounded-full shadow-[0_0_10px_#06b6d4]"></span>
               Liên kết nhanh
             </h3>
             <ul className="space-y-2 text-slate-500 dark:text-gray-400">
               {settings.navigation.slice(0, 4).map(item => (
                  !item.isExternal && !item.children && (
                    <li key={item.id}>
-                     <Link to={item.path} className="hover:text-sky-600 dark:hover:text-space-neon hover:pl-1 transition-all duration-300 inline-block">
+                     <Link to={item.path} className="hover:text-sky-600 dark:hover:text-cyan-400 hover:pl-1 transition-all duration-300 inline-block">
                        {item.label}
                      </Link>
                    </li>
                  )
               ))}
-              <li><Link to="/admin" className="hover:text-sky-600 dark:hover:text-space-neon flex items-center hover:pl-1 transition-all duration-300"><Shield size={12} className="mr-1"/> Quản trị viên</Link></li>
+              <li><Link to="/admin" className="hover:text-sky-600 dark:hover:text-cyan-400 flex items-center hover:pl-1 transition-all duration-300"><Shield size={12} className="mr-1"/> Quản trị viên</Link></li>
             </ul>
           </div>
           <div>
              <h3 className="text-slate-800 dark:text-white font-bold mb-4 uppercase tracking-wider flex items-center">
-              <span className="w-1 h-4 bg-purple-500 dark:bg-space-purple mr-2 rounded-full shadow-[0_0_10px_#a855f7]"></span>
+              <span className="w-1 h-4 bg-purple-500 dark:bg-purple-400 mr-2 rounded-full shadow-[0_0_10px_#a855f7]"></span>
               Theo dõi
             </h3>
             <div className="flex space-x-4">
-              <a href={settings.socialLinks.facebook} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center hover:bg-sky-500 dark:hover:bg-space-neon hover:text-white dark:hover:text-white hover:border-sky-500 dark:hover:border-space-neon hover:shadow-[0_0_15px_rgba(56,189,248,0.6)] transition-all duration-300 text-slate-600 dark:text-gray-300">FB</a>
-              <a href={settings.socialLinks.twitter} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center hover:bg-sky-500 dark:hover:bg-space-neon hover:text-white dark:hover:text-white hover:border-sky-500 dark:hover:border-space-neon hover:shadow-[0_0_15px_rgba(56,189,248,0.6)] transition-all duration-300 text-slate-600 dark:text-gray-300">X</a>
-              <a href={settings.socialLinks.linkedin} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center hover:bg-sky-500 dark:hover:bg-space-neon hover:text-white dark:hover:text-white hover:border-sky-500 dark:hover:border-space-neon hover:shadow-[0_0_15px_rgba(56,189,248,0.6)] transition-all duration-300 text-slate-600 dark:text-gray-300">IN</a>
+              <a href={settings.socialLinks.facebook} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center hover:bg-sky-500 dark:hover:bg-cyan-400 hover:text-white dark:hover:text-white hover:border-sky-500 dark:hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.6)] transition-all duration-300 text-slate-600 dark:text-gray-300">FB</a>
+              <a href={settings.socialLinks.twitter} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center hover:bg-sky-500 dark:hover:bg-cyan-400 hover:text-white dark:hover:text-white hover:border-sky-500 dark:hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.6)] transition-all duration-300 text-slate-600 dark:text-gray-300">X</a>
+              <a href={settings.socialLinks.linkedin} className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center hover:bg-sky-500 dark:hover:bg-cyan-400 hover:text-white dark:hover:text-white hover:border-sky-500 dark:hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(34,211,238,0.6)] transition-all duration-300 text-slate-600 dark:text-gray-300">IN</a>
             </div>
           </div>
         </div>

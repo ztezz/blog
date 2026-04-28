@@ -49,22 +49,22 @@ const Contact: React.FC = () => {
     <div className="min-h-screen py-16 px-4">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-display font-bold text-slate-900 dark:text-white text-center mb-16 drop-shadow-sm">
-          Kết Nối Với <span className="text-sky-600 dark:text-space-neon">CosmoGIS</span>
+          Kết Nối Với <span className="text-sky-600 dark:text-cyan-400">CosmoGIS</span>
         </h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Info Side (Dynamic) */}
           <div className="space-y-8">
             <div 
-              className="bg-white/90 dark:bg-white/5 p-8 rounded-2xl border border-white/40 dark:border-white/10 backdrop-blur-md shadow-lg
+              className="bg-white/90 dark:bg-slate-900/50 p-8 rounded-2xl border border-white/40 dark:border-white/10 backdrop-blur-md shadow-lg
                         prose prose-lg max-w-none 
-                        text-slate-700 dark:text-gray-300
+                        text-slate-700 dark:text-gray-100
                         prose-headings:text-slate-900 dark:prose-headings:text-white
                         prose-strong:text-slate-900 dark:prose-strong:text-white
                         
                         /* FORCE OVERRIDES FOR LIGHT MODE */
-                        [&_p]:!text-slate-700 dark:[&_p]:!text-gray-300
-                        [&_li]:!text-slate-700 dark:[&_li]:!text-gray-300
+                        [&_p]:!text-slate-700 dark:[&_p]:!text-gray-100
+                        [&_li]:!text-slate-700 dark:[&_li]:!text-gray-100
                         [&_h1]:!text-slate-900 dark:[&_h1]:!text-white
                         [&_h2]:!text-slate-900 dark:[&_h2]:!text-white
                         [&_h3]:!text-slate-800 dark:[&_h3]:!text-white
@@ -72,13 +72,13 @@ const Contact: React.FC = () => {
                         [&_strong]:!text-slate-900 dark:[&_strong]:!text-white
                         
                         /* Keep accent colors */
-                        [&_.text-space-neon]:!text-sky-600 dark:[&_.text-space-neon]:!text-space-neon
-                        [&_.text-space-purple]:!text-purple-600 dark:[&_.text-space-purple]:!text-space-purple"
+                        [&_.text-space-neon]:!text-sky-600 dark:[&_.text-space-neon]:!text-cyan-400
+                        [&_.text-space-purple]:!text-purple-600 dark:[&_.text-space-purple]:!text-purple-400"
               dangerouslySetInnerHTML={{ __html: contactContent }}
             >
             </div>
 
-            <div className="bg-gradient-to-r from-sky-100 to-purple-100 dark:from-space-neon/20 dark:to-space-purple/20 p-8 rounded-2xl border border-white/40 dark:border-white/5 backdrop-blur-sm shadow-sm">
+            <div className="bg-gradient-to-r from-sky-100 to-purple-100 dark:from-cyan-400/20 dark:to-purple-400/20 p-8 rounded-2xl border border-white/40 dark:border-white/5 backdrop-blur-sm shadow-sm">
               <p className="text-slate-700 dark:text-gray-300 italic font-medium">
                 "Bản đồ không phải là lãnh thổ, nhưng là công cụ tốt nhất để chúng ta không bị lạc lối giữa những vì sao."
               </p>
@@ -86,7 +86,7 @@ const Contact: React.FC = () => {
           </div>
 
           {/* Form Side */}
-          <div className="bg-white dark:bg-space-800 p-8 md:p-10 rounded-2xl border border-slate-100 dark:border-white/10 shadow-2xl backdrop-blur-xl">
+          <div className="bg-white dark:bg-slate-800 p-8 md:p-10 rounded-2xl border border-slate-100 dark:border-white/10 shadow-2xl backdrop-blur-xl">
             {isSubmitted ? (
               <div className="h-full flex flex-col items-center justify-center text-center py-10">
                 <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6">
@@ -96,7 +96,7 @@ const Contact: React.FC = () => {
                 <p className="text-slate-600 dark:text-gray-400">Cảm ơn bạn đã liên hệ. Đội ngũ CosmoGIS sẽ phản hồi tín hiệu của bạn sớm nhất có thể.</p>
                 <button 
                   onClick={() => setIsSubmitted(false)}
-                  className="mt-8 text-sky-600 dark:text-space-neon hover:underline font-bold"
+                  className="mt-8 text-sky-600 dark:text-cyan-400 hover:underline font-bold"
                 >
                   Gửi tin nhắn khác
                 </button>
@@ -114,7 +114,7 @@ const Contact: React.FC = () => {
                       required
                       value={formData.name}
                       onChange={handleChange}
-                      className="w-full bg-white dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon focus:ring-1 focus:ring-sky-500 dark:focus:ring-space-neon outline-none transition-all placeholder-slate-400"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 focus:ring-1 focus:ring-sky-500 dark:focus:ring-cyan-400 outline-none transition-all placeholder-slate-400"
                       placeholder="Nguyễn Văn A"
                     />
                   </div>
@@ -126,7 +126,7 @@ const Contact: React.FC = () => {
                       required
                       value={formData.email}
                       onChange={handleChange}
-                      className="w-full bg-white dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon focus:ring-1 focus:ring-sky-500 dark:focus:ring-space-neon outline-none transition-all placeholder-slate-400"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 focus:ring-1 focus:ring-sky-500 dark:focus:ring-cyan-400 outline-none transition-all placeholder-slate-400"
                       placeholder="name@example.com"
                     />
                   </div>
@@ -140,7 +140,7 @@ const Contact: React.FC = () => {
                     required
                     value={formData.subject}
                     onChange={handleChange}
-                    className="w-full bg-white dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon focus:ring-1 focus:ring-sky-500 dark:focus:ring-space-neon outline-none transition-all placeholder-slate-400"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 focus:ring-1 focus:ring-sky-500 dark:focus:ring-cyan-400 outline-none transition-all placeholder-slate-400"
                     placeholder="Hợp tác nghiên cứu / Góp ý..."
                   />
                 </div>
@@ -153,7 +153,7 @@ const Contact: React.FC = () => {
                     value={formData.message}
                     onChange={handleChange}
                     rows={5}
-                    className="w-full bg-white dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon focus:ring-1 focus:ring-sky-500 dark:focus:ring-space-neon outline-none transition-all resize-none placeholder-slate-400"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 focus:ring-1 focus:ring-sky-500 dark:focus:ring-cyan-400 outline-none transition-all resize-none placeholder-slate-400"
                     placeholder="Nhập nội dung tin nhắn..."
                   ></textarea>
                 </div>
@@ -161,7 +161,7 @@ const Contact: React.FC = () => {
                 <button 
                   type="submit" 
                   disabled={loading}
-                  className="w-full bg-sky-500 hover:bg-sky-600 dark:bg-gradient-to-r dark:from-space-neon dark:to-space-accent text-white dark:text-space-900 font-bold py-4 rounded-lg shadow-lg hover:shadow-xl dark:hover:shadow-[0_0_20px_rgba(102,252,241,0.4)] transition-all transform hover:-translate-y-1 disabled:opacity-50"
+                  className="w-full bg-sky-500 hover:bg-sky-600 dark:bg-gradient-to-r dark:from-cyan-400 dark:to-cyan-300 text-white dark:text-slate-950 font-bold py-4 rounded-lg shadow-lg hover:shadow-xl dark:hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] transition-all transform hover:-translate-y-1 disabled:opacity-50"
                 >
                   {loading ? 'Đang gửi...' : 'Gửi Tín Hiệu'}
                 </button>

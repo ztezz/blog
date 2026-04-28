@@ -173,9 +173,9 @@ const PostEditor: React.FC = () => {
         case 'italic': insertHtmlTag('<i>', '</i>'); break;
         case 'underline': insertHtmlTag('<u>', '</u>'); break;
         case 'h2': insertHtmlTag('<h2 class="text-2xl font-bold text-slate-800 dark:text-white mb-3">', '</h2>'); break;
-        case 'h3': insertHtmlTag('<h3 class="text-xl font-bold text-sky-600 dark:text-space-neon mb-2">', '</h3>'); break;
+        case 'h3': insertHtmlTag('<h3 class="text-xl font-bold text-sky-600 dark:text-cyan-400 mb-2">', '</h3>'); break;
         case 'p': insertHtmlTag('<p class="mb-4 text-slate-600 dark:text-gray-300">', '</p>'); break;
-        case 'quote': insertHtmlTag('<blockquote class="border-l-4 border-sky-500 dark:border-space-neon pl-4 italic text-slate-500 dark:text-gray-400 my-4 bg-slate-100 dark:bg-white/5 p-4 rounded-r">', '</blockquote>'); break;
+        case 'quote': insertHtmlTag('<blockquote class="border-l-4 border-sky-500 dark:border-cyan-400 pl-4 italic text-slate-500 dark:text-gray-400 my-4 bg-slate-100 dark:bg-white/5 p-4 rounded-r">', '</blockquote>'); break;
         case 'list': insertHtmlTag('<ul class="list-disc list-inside mb-4 space-y-2 text-slate-600 dark:text-gray-300"><li>', '</li></ul>'); break;
         case 'orderedList': insertHtmlTag('<ol class="list-decimal list-inside mb-4 space-y-2 text-slate-600 dark:text-gray-300"><li>', '</li></ol>'); break;
       }
@@ -304,7 +304,7 @@ const PostEditor: React.FC = () => {
     const url = prompt("Nhập đường dẫn (URL):");
     if (!url) return;
     if (editorMode === 'visual') execCmd('createLink', url);
-    else insertHtmlTag(`<a href="${url}" class="text-sky-600 dark:text-space-neon hover:underline" target="_blank">`, `</a>`);
+    else insertHtmlTag(`<a href="${url}" class="text-sky-600 dark:text-cyan-400 hover:underline" target="_blank">`, `</a>`);
   };
 
   const handleVisualInput = (e: React.FormEvent<HTMLDivElement>) => {
@@ -326,7 +326,7 @@ const PostEditor: React.FC = () => {
 
   if (loading && id) {
      return <div className="text-slate-600 dark:text-white text-center py-20 flex flex-col items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-500 dark:border-space-neon mb-4"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-500 dark:border-cyan-400 mb-4"></div>
         <p>Đang tải dữ liệu bài viết...</p>
      </div>
   }
@@ -346,7 +346,7 @@ const PostEditor: React.FC = () => {
           </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-space-800 p-6 md:p-8 rounded-xl border border-slate-200 dark:border-white/10 space-y-6 shadow-lg dark:shadow-2xl">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-xl border border-slate-200 dark:border-white/10 space-y-6 shadow-lg dark:shadow-2xl">
           {/* Main Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
@@ -357,7 +357,7 @@ const PostEditor: React.FC = () => {
                 required
                 value={formData.title}
                 onChange={handleChange}
-                className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon focus:ring-1 focus:ring-sky-500 dark:focus:ring-space-neon outline-none text-lg font-bold"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 focus:ring-1 focus:ring-sky-500 dark:focus:ring-cyan-400 outline-none text-lg font-bold"
                 placeholder="Nhập tiêu đề..."
               />
             </div>
@@ -368,7 +368,7 @@ const PostEditor: React.FC = () => {
                 name="category"
                 value={formData.category}
                 onChange={handleChange}
-                className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
               >
                 {categories.length === 0 && <option value="">Đang tải danh mục...</option>}
                 {categories.map(c => (
@@ -385,7 +385,7 @@ const PostEditor: React.FC = () => {
                   name="readTime"
                   value={formData.readTime}
                   readOnly
-                  className="w-full bg-slate-100 dark:bg-space-900/50 border border-slate-300 dark:border-white/10 rounded-lg pl-10 pr-4 py-3 text-slate-500 dark:text-gray-400 focus:outline-none cursor-not-allowed"
+                  className="w-full bg-slate-100 dark:bg-slate-900/50 border border-slate-300 dark:border-white/10 rounded-lg pl-10 pr-4 py-3 text-slate-500 dark:text-gray-400 focus:outline-none cursor-not-allowed"
                 />
               </div>
             </div>
@@ -400,16 +400,16 @@ const PostEditor: React.FC = () => {
                   name="imageUrl"
                   value={formData.imageUrl}
                   onChange={handleChange}
-                  className="flex-1 bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                   placeholder="Nhập URL hoặc upload..."
                 />
-                <label className={`cursor-pointer bg-sky-100 dark:bg-space-neon/10 border border-sky-300 dark:border-space-neon/30 text-sky-700 dark:text-space-neon rounded-lg px-4 flex items-center hover:bg-sky-200 dark:hover:bg-space-neon hover:text-sky-800 dark:hover:text-space-900 transition-colors font-bold ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
+                <label className={`cursor-pointer bg-sky-100 dark:bg-cyan-400/10 border border-sky-300 dark:border-cyan-400/30 text-sky-700 dark:text-cyan-400 rounded-lg px-4 flex items-center hover:bg-sky-200 dark:hover:bg-cyan-400 hover:text-sky-800 dark:hover:text-slate-950 transition-colors font-bold ${isUploading ? 'opacity-50 cursor-wait' : ''}`}>
                   <Upload size={18} className="mr-2" />
                   {isUploading ? '...' : 'Upload'}
                   <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={isUploading} />
                 </label>
                </div>
-              <div className="w-12 h-12 bg-slate-50 dark:bg-space-900 rounded border border-slate-300 dark:border-white/10 overflow-hidden flex-shrink-0">
+              <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded border border-slate-300 dark:border-white/10 overflow-hidden flex-shrink-0">
                 {formData.imageUrl && <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />}
               </div>
             </div>
@@ -422,7 +422,7 @@ const PostEditor: React.FC = () => {
               value={tagInput}
               onChange={handleTagChange}
               placeholder="GIS, Space, Mars..."
-              className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
             />
           </div>
 
@@ -433,15 +433,15 @@ const PostEditor: React.FC = () => {
               rows={3}
               value={formData.excerpt}
               onChange={handleChange}
-              className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none resize-none"
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none resize-none"
               placeholder="Mô tả ngắn gọn về bài viết hiển thị ở trang chủ..."
             ></textarea>
           </div>
 
           {/* EDITOR SECTION */}
-          <div className="border border-slate-300 dark:border-white/20 rounded-xl overflow-hidden bg-slate-50 dark:bg-space-900/50 flex flex-col shadow-inner">
+          <div className="border border-slate-300 dark:border-white/20 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/50 flex flex-col shadow-inner">
             {/* Toolbar */}
-            <div className="bg-white dark:bg-space-900 border-b border-slate-300 dark:border-white/10 p-2 sticky top-0 z-10">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-white/10 p-2 sticky top-0 z-10">
                <div className="flex flex-wrap items-center gap-1 mb-1">
                  {/* Text Style */}
                  <div className="flex bg-slate-100 dark:bg-white/5 rounded p-0.5">

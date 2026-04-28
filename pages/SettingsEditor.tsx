@@ -242,19 +242,19 @@ const SettingsEditor: React.FC = () => {
         <div className="flex border-b border-slate-200 dark:border-white/10 mb-8 space-x-6">
           <button 
             onClick={() => setActiveTab('general')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'general' ? 'border-sky-500 dark:border-space-neon text-sky-600 dark:text-space-neon' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
+            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'general' ? 'border-sky-500 dark:border-cyan-400 text-sky-600 dark:text-cyan-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
           >
             Chung & Footer
           </button>
           <button 
             onClick={() => setActiveTab('menu')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'menu' ? 'border-sky-500 dark:border-space-neon text-sky-600 dark:text-space-neon' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
+            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'menu' ? 'border-sky-500 dark:border-cyan-400 text-sky-600 dark:text-cyan-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
           >
             Menu Điều Hướng
           </button>
           <button 
             onClick={() => setActiveTab('pages')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'pages' ? 'border-sky-500 dark:border-space-neon text-sky-600 dark:text-space-neon' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
+            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'pages' ? 'border-sky-500 dark:border-cyan-400 text-sky-600 dark:text-cyan-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
           >
             Nội dung Trang
           </button>
@@ -265,20 +265,20 @@ const SettingsEditor: React.FC = () => {
           {/* GENERAL TAB */}
           {activeTab === 'general' && (
             <div className="space-y-8 animate-fadeIn">
-              <div className="bg-white dark:bg-space-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg dark:shadow-none">
-                <h3 className="text-xl font-bold text-sky-600 dark:text-space-neon mb-6 flex items-center">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg">
+                <h3 className="text-xl font-bold text-sky-600 dark:text-cyan-400 mb-6 flex items-center">
                   <Globe className="mr-2" size={20} /> Thương Hiệu & Logo
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Logo Website</label>
                     <div className="flex items-start space-x-4">
-                      <div className="w-24 h-24 bg-slate-50 dark:bg-space-900 border border-slate-200 dark:border-white/20 rounded-lg flex items-center justify-center overflow-hidden relative">
+                      <div className="w-24 h-24 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/20 rounded-lg flex items-center justify-center overflow-hidden relative">
                         {settings.logoUrl ? <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain" /> : <ImageIcon className="text-gray-400 dark:text-gray-600" size={32} />}
                         {uploadingLogo && <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-xs text-white">...</div>}
                       </div>
                       <div className="flex-1">
-                        <label className="cursor-pointer bg-sky-50 dark:bg-space-neon/10 text-sky-600 dark:text-space-neon hover:bg-sky-100 dark:hover:bg-space-neon hover:text-sky-700 dark:hover:text-space-900 border border-sky-200 dark:border-space-neon/30 px-4 py-2 rounded text-sm font-bold inline-flex items-center transition-all mb-2">
+                        <label className="cursor-pointer bg-sky-50 dark:bg-cyan-400/10 text-sky-600 dark:text-cyan-400 hover:bg-sky-100 dark:hover:bg-cyan-400 hover:text-sky-700 dark:hover:text-slate-950 border border-sky-200 dark:border-cyan-400/30 px-4 py-2 rounded text-sm font-bold inline-flex items-center transition-all mb-2">
                           <Upload size={14} className="mr-2" /> Chọn Logo
                           <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e, 'logo')} />
                         </label>
@@ -288,12 +288,12 @@ const SettingsEditor: React.FC = () => {
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Favicon</label>
                     <div className="flex items-start space-x-4">
-                      <div className="w-12 h-12 bg-slate-50 dark:bg-space-900 border border-slate-200 dark:border-white/20 rounded-lg flex items-center justify-center overflow-hidden relative">
+                      <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/20 rounded-lg flex items-center justify-center overflow-hidden relative">
                         {settings.faviconUrl ? <img src={settings.faviconUrl} alt="Favicon" className="w-8 h-8 object-contain" /> : <Globe className="text-gray-400 dark:text-gray-600" size={20} />}
                         {uploadingFavicon && <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-[10px] text-white">...</div>}
                       </div>
                       <div className="flex-1">
-                        <label className="cursor-pointer bg-sky-50 dark:bg-space-neon/10 text-sky-600 dark:text-space-neon hover:bg-sky-100 dark:hover:bg-space-neon hover:text-sky-700 dark:hover:text-space-900 border border-sky-200 dark:border-space-neon/30 px-4 py-2 rounded text-sm font-bold inline-flex items-center transition-all mb-2">
+                        <label className="cursor-pointer bg-sky-50 dark:bg-cyan-400/10 text-sky-600 dark:text-cyan-400 hover:bg-sky-100 dark:hover:bg-cyan-400 hover:text-sky-700 dark:hover:text-slate-950 border border-sky-200 dark:border-cyan-400/30 px-4 py-2 rounded text-sm font-bold inline-flex items-center transition-all mb-2">
                           <Upload size={14} className="mr-2" /> Chọn Icon
                           <input type="file" className="hidden" accept="image/png, image/x-icon" onChange={(e) => handleFileUpload(e, 'favicon')} />
                         </label>
@@ -305,46 +305,46 @@ const SettingsEditor: React.FC = () => {
                 {/* NEW: Page Title Input */}
                 <div className="mb-6">
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Tiêu đề trang (Browser Tab Title)</label>
-                    <input type="text" name="pageTitle" value={settings.pageTitle || ''} onChange={handleChange} className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none" placeholder="VD: CosmoGIS - Bản Đồ Vũ Trụ" />
+                    <input type="text" name="pageTitle" value={settings.pageTitle || ''} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none" placeholder="VD: CosmoGIS - Bản Đồ Vũ Trụ" />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Tên Web (Tiền tố)</label>
-                    <input type="text" name="siteNamePrefix" value={settings.siteNamePrefix} onChange={handleChange} className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none" />
+                    <input type="text" name="siteNamePrefix" value={settings.siteNamePrefix} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Tên Web (Hậu tố - Màu)</label>
-                    <input type="text" name="siteNameSuffix" value={settings.siteNameSuffix} onChange={handleChange} className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none" />
+                    <input type="text" name="siteNameSuffix" value={settings.siteNameSuffix} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-space-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg dark:shadow-none">
-                <h3 className="text-xl font-bold text-sky-600 dark:text-space-neon mb-6 flex items-center">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg">
+                <h3 className="text-xl font-bold text-sky-600 dark:text-cyan-400 mb-6 flex items-center">
                   <Type className="mr-2" size={20} /> Footer & Mạng Xã Hội
                 </h3>
                 <div className="mb-6">
                   <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Mô tả Footer</label>
-                  <textarea name="footerDescription" rows={3} value={settings.footerDescription} onChange={handleChange} className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none resize-none"></textarea>
+                  <textarea name="footerDescription" rows={3} value={settings.footerDescription} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none resize-none"></textarea>
                 </div>
                 <div className="mb-6">
                   <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Dòng bản quyền</label>
-                  <input type="text" name="footerCopyright" value={settings.footerCopyright} onChange={handleChange} className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none" />
+                  <input type="text" name="footerCopyright" value={settings.footerCopyright} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none" />
                 </div>
                 <h4 className="text-slate-900 dark:text-white font-bold mb-4 flex items-center"><LinkIcon size={16} className="mr-2"/> Links Mạng Xã Hội</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-xs text-slate-500 dark:text-gray-500 mb-1">Facebook</label>
-                    <input type="text" name="facebook" value={settings.socialLinks.facebook} onChange={handleSocialChange} className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-space-neon outline-none" />
+                    <input type="text" name="facebook" value={settings.socialLinks.facebook} onChange={handleSocialChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-cyan-400 outline-none" />
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 dark:text-gray-500 mb-1">X (Twitter)</label>
-                    <input type="text" name="twitter" value={settings.socialLinks.twitter} onChange={handleSocialChange} className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-space-neon outline-none" />
+                    <input type="text" name="twitter" value={settings.socialLinks.twitter} onChange={handleSocialChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-cyan-400 outline-none" />
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 dark:text-gray-500 mb-1">LinkedIn</label>
-                    <input type="text" name="linkedin" value={settings.socialLinks.linkedin} onChange={handleSocialChange} className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-space-neon outline-none" />
+                    <input type="text" name="linkedin" value={settings.socialLinks.linkedin} onChange={handleSocialChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-cyan-400 outline-none" />
                   </div>
                 </div>
               </div>
@@ -353,10 +353,10 @@ const SettingsEditor: React.FC = () => {
 
           {/* MENU TAB */}
           {activeTab === 'menu' && (
-            <div className="bg-white dark:bg-space-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg dark:shadow-none animate-fadeIn">
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg animate-fadeIn">
               <div className="flex justify-between items-center mb-6">
-                 <h3 className="text-xl font-bold text-sky-600 dark:text-space-neon flex items-center"><Layout className="mr-2" size={20} /> Menu Builder</h3>
-                 <button type="button" onClick={addTopLevelItem} className="text-sm bg-sky-100 dark:bg-space-neon/20 text-sky-700 dark:text-space-neon px-3 py-1 rounded hover:bg-sky-200 dark:hover:bg-space-neon hover:text-sky-800 dark:hover:text-space-900 transition-colors flex items-center">
+                 <h3 className="text-xl font-bold text-sky-600 dark:text-cyan-400 flex items-center"><Layout className="mr-2" size={20} /> Menu Builder</h3>
+                 <button type="button" onClick={addTopLevelItem} className="text-sm bg-sky-100 dark:bg-cyan-400/20 text-sky-700 dark:text-cyan-400 px-3 py-1 rounded hover:bg-sky-200 dark:hover:bg-cyan-400 hover:text-sky-800 dark:hover:text-slate-950 transition-colors flex items-center">
                    <Plus size={14} className="mr-1" /> Thêm menu
                  </button>
               </div>
@@ -364,7 +364,7 @@ const SettingsEditor: React.FC = () => {
                  {/* List View */}
                  <div className="space-y-3">
                    {settings.navigation.map((item, index) => (
-                     <div key={item.id} className="bg-slate-50 dark:bg-space-900 border border-slate-200 dark:border-white/10 rounded-lg overflow-hidden" draggable onDragStart={(e) => handleDragStart(e, 'parent', index)} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'parent', index)}>
+                     <div key={item.id} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-lg overflow-hidden" draggable onDragStart={(e) => handleDragStart(e, 'parent', index)} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'parent', index)}>
                        <div className={`p-3 flex items-center justify-between cursor-move ${editingItem?.item.id === item.id ? 'bg-sky-100 dark:bg-white/10' : ''}`}>
                           <div className="flex items-center space-x-2 overflow-hidden">
                             <GripVertical size={16} className="text-slate-400 dark:text-gray-600" />
@@ -377,13 +377,13 @@ const SettingsEditor: React.FC = () => {
                             <button type="button" onClick={() => deleteItem(item.id)} className="p-1 hover:text-red-500 text-slate-400 dark:text-gray-500"><Trash2 size={14}/></button>
                           </div>
                        </div>
-                       <div className="px-3 pb-2 bg-slate-50 dark:bg-space-900 border-b border-slate-200 dark:border-white/5">
-                          <button type="button" onClick={() => addChildItem(item.id)} className="text-xs text-sky-600 dark:text-space-neon hover:underline flex items-center"><CornerDownRight size={12} className="mr-1"/> Thêm menu con</button>
+                       <div className="px-3 pb-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-white/5">
+                          <button type="button" onClick={() => addChildItem(item.id)} className="text-xs text-sky-600 dark:text-cyan-400 hover:underline flex items-center"><CornerDownRight size={12} className="mr-1"/> Thêm menu con</button>
                        </div>
                        {item.children && item.children.length > 0 && (
                          <div className="bg-slate-100 dark:bg-black/20 pl-6 pr-2 py-2 space-y-2 border-t border-slate-200 dark:border-white/5">
                             {item.children.map((child, cIndex) => (
-                              <div key={child.id} className={`flex items-center justify-between p-2 rounded cursor-move ${editingItem?.item.id === child.id ? 'bg-sky-100 dark:bg-white/10' : 'bg-white dark:bg-white/5 shadow-sm dark:shadow-none'}`} draggable onDragStart={(e) => handleDragStart(e, 'child', cIndex, index)} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'child', cIndex, index)}>
+                              <div key={child.id} className={`flex items-center justify-between p-2 rounded cursor-move ${editingItem?.item.id === child.id ? 'bg-sky-100 dark:bg-white/10' : 'bg-white dark:bg-white/5 shadow-sm'}`} draggable onDragStart={(e) => handleDragStart(e, 'child', cIndex, index)} onDragEnd={handleDragEnd} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'child', cIndex, index)}>
                                  <div className="flex items-center space-x-2 overflow-hidden">
                                     <GripVertical size={14} className="text-slate-400 dark:text-gray-600" />
                                     <span className="text-sm text-slate-600 dark:text-gray-300 truncate">{child.label}</span>
@@ -402,12 +402,12 @@ const SettingsEditor: React.FC = () => {
                    ))}
                  </div>
                  {/* Editor */}
-                 <div className="bg-slate-50 dark:bg-space-900 border border-slate-200 dark:border-white/20 rounded-lg p-6 h-fit sticky top-6 shadow-sm dark:shadow-none">
+                 <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-white/20 rounded-lg p-6 h-fit sticky top-6 shadow-sm">
                     {editingItem ? (
                       <div className="space-y-4">
                         <div className="flex justify-between items-center mb-4"><h4 className="font-bold text-slate-900 dark:text-white">Sửa: {editingItem.item.label}</h4></div>
-                        <div><label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Tên</label><input type="text" value={editingItem.item.label} onChange={(e) => updateItemField('label', e.target.value)} className="w-full bg-white dark:bg-space-800 border border-slate-300 dark:border-white/20 rounded px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-space-neon outline-none" /></div>
-                        <div><label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Link</label><input type="text" value={editingItem.item.path} onChange={(e) => updateItemField('path', e.target.value)} className="w-full bg-white dark:bg-space-800 border border-slate-300 dark:border-white/20 rounded px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-space-neon outline-none" /></div>
+                 <div><label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Tên</label><input type="text" value={editingItem.item.label} onChange={(e) => updateItemField('label', e.target.value)} className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/20 rounded px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-cyan-400 outline-none" /></div>
+                        <div><label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Link</label><input type="text" value={editingItem.item.path} onChange={(e) => updateItemField('path', e.target.value)} className="w-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-white/20 rounded px-3 py-2 text-slate-900 dark:text-white text-sm focus:border-sky-500 dark:focus:border-cyan-400 outline-none" /></div>
                         <div className="flex items-center"><input type="checkbox" checked={editingItem.item.isExternal || false} onChange={(e) => updateItemField('isExternal', e.target.checked)} className="mr-2"/><label className="text-sm text-slate-700 dark:text-gray-300">Tab mới</label></div>
                       </div>
                     ) : (
@@ -421,8 +421,8 @@ const SettingsEditor: React.FC = () => {
           {/* PAGES CONTENT TAB */}
           {activeTab === 'pages' && (
             <div className="space-y-8 animate-fadeIn">
-              <div className="bg-white dark:bg-space-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg dark:shadow-none">
-                 <h3 className="text-xl font-bold text-sky-600 dark:text-space-neon mb-6 flex items-center">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg">
+                 <h3 className="text-xl font-bold text-sky-600 dark:text-cyan-400 mb-6 flex items-center">
                    <FileText className="mr-2" size={20} /> Nội dung trang Giới Thiệu (About)
                  </h3>
                  <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">Hỗ trợ mã HTML (thẻ p, h3, b, i, ul, li...)</p>
@@ -431,13 +431,13 @@ const SettingsEditor: React.FC = () => {
                    value={settings.aboutContent || ''}
                    onChange={handleChange}
                    rows={10}
-                   className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                    placeholder="Nhập nội dung HTML cho trang About..."
                  ></textarea>
               </div>
 
-              <div className="bg-white dark:bg-space-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg dark:shadow-none">
-                 <h3 className="text-xl font-bold text-sky-600 dark:text-space-neon mb-6 flex items-center">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg">
+                 <h3 className="text-xl font-bold text-sky-600 dark:text-cyan-400 mb-6 flex items-center">
                    <AlignLeft className="mr-2" size={20} /> Thông tin trang Liên Hệ (Contact)
                  </h3>
                  <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">Nội dung hiển thị bên trái form liên hệ (Địa chỉ, Email, SĐT...). Hỗ trợ HTML.</p>
@@ -446,7 +446,7 @@ const SettingsEditor: React.FC = () => {
                    value={settings.contactContent || ''}
                    onChange={handleChange}
                    rows={10}
-                   className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                    placeholder="<p>Địa chỉ...</p>"
                  ></textarea>
               </div>
@@ -454,7 +454,7 @@ const SettingsEditor: React.FC = () => {
           )}
 
           <div className="flex justify-end pt-4">
-            <button type="submit" disabled={loading} className="flex items-center px-8 py-4 bg-sky-500 dark:bg-space-neon text-white dark:text-space-900 font-bold rounded hover:bg-sky-600 dark:hover:bg-white transition-colors disabled:opacity-50">
+            <button type="submit" disabled={loading} className="flex items-center px-8 py-4 bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950 font-bold rounded hover:bg-sky-600 dark:hover:bg-cyan-300 transition-colors disabled:opacity-50">
               <Save size={20} className="mr-2" /> {loading ? 'Đang lưu...' : 'Lưu Thay Đổi'}
             </button>
           </div>

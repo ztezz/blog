@@ -199,6 +199,58 @@ const fixUrl = (url) => {
 
 // --- API ROUTES ---
 
+// 0. Database Restore
+app.post('/api/restore-db', async (req, res) => {
+  try {
+    const sqlFilePath = path.join(__dirname, '..', 'dulieu_webgis_2026-04-02.sql');
+    if (!fs.existsSync(sqlFilePath)) {
+      return res.status(404).json({ error: 'File SQL không tồn tại!' });
+    }
+
+    let sql = fs.readFileSync(sqlFilePath, 'utf8');
+    
+    // PHẦN SỬA LỖI: Tách và xử lý COPY commands
+    // Thư viện pg.query không hỗ trợ lệnh COPY ... FROM stdin
+    // Chúng ta sẽ chuyển đổi COPY thành INSERT hoặc bỏ qua nếu không cần thiết.
+    // Cách đơn giản nhất để fix lỗi "syntax error at or near gis" của psql dump là:
+    
+    const lines = sql.split('\n');
+    let processedSql = "";
+    let inCopyBlock = false;
+
+    for (let line of lines) {
+        const trimmed = line.trim();
+        
+        // Bỏ qua các lệnh điều khiển psql (\set, \connect, v.v.)
+        if (trimmed.startsWith('\\') && trimmed !== '\\.') continue;
+
+        // Xử lý khối COPY
+        if (trimmed.toUpperCase().startsWith('COPY ')) {
+            inCopyBlock = true;
+            continue; // Bỏ qua dòng lệnh COPY
+        }
+        
+        if (trimmed === '\\.') {
+            inCopyBlock = false;
+            continue; // Kết thúc khối dữ liệu
+        }
+
+        // Nếu đang trong khối dữ liệu của COPY, bỏ qua vì pg driver không hiểu format stdin
+        if (inCopyBlock) continue;
+
+        processedSql += line + '\n';
+    }
+
+    await db.query(processedSql);
+    
+    console.log('[System] Database schema restored successfully (Data seeding skipped for COPY commands)');
+    res.json({ message: 'Khôi phục cấu trúc database thành công! (Dữ liệu COPY được bỏ qua để tránh lỗi driver)' });
+  } catch (err) {
+    console.error('Restore Error:', err);
+    res.status(500).json({ error: 'Khôi phục database thất bại: ' + err.message });
+  }
+});
+
 // 1. Settings
 app.get('/api/settings', async (req, res) => {
   try {

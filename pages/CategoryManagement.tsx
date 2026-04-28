@@ -93,14 +93,14 @@ const CategoryManagement: React.FC = () => {
               <ArrowLeft size={24} />
             </button>
             <h1 className="text-3xl font-display font-bold text-slate-900 dark:text-white flex items-center">
-              <Layers className="mr-3 text-sky-600 dark:text-space-neon" /> Quản Lý Danh Mục
+              <Layers className="mr-3 text-sky-600 dark:text-cyan-400" /> Quản Lý Danh Mục
             </h1>
           </div>
           
           {!isEditing && (
             <button 
               onClick={handleCreate}
-              className="flex items-center px-4 py-2 bg-sky-500 dark:bg-space-neon text-white dark:text-space-900 rounded font-bold hover:bg-sky-600 dark:hover:bg-white transition-colors shadow-lg shadow-sky-500/30 dark:shadow-[0_0_10px_rgba(102,252,241,0.3)]"
+              className="flex items-center px-4 py-2 bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950 rounded font-bold hover:bg-sky-600 dark:hover:bg-cyan-300 transition-colors shadow-lg shadow-sky-500/30 dark:shadow-[0_0_10px_rgba(34,211,238,0.3)]"
             >
               <Plus size={18} className="mr-2" /> Thêm danh mục
             </button>
@@ -111,20 +111,20 @@ const CategoryManagement: React.FC = () => {
           {/* List */}
           <div className="lg:col-span-2 space-y-4">
             {categories.length === 0 ? (
-                 <div className="text-center text-slate-500 dark:text-gray-500 py-10 bg-white dark:bg-space-800/50 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm dark:shadow-none">
+                 <div className="text-center text-slate-500 dark:text-gray-500 py-10 bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm dark:shadow-none">
                      <List size={40} className="mx-auto mb-2 opacity-30" />
                      <p>Chưa có danh mục nào.</p>
                  </div>
             ) : (
                 categories.map((cat) => (
-                <div key={cat.id} className="bg-white dark:bg-space-800 border border-slate-200 dark:border-white/10 rounded-xl p-5 flex items-center justify-between hover:border-sky-300 dark:hover:border-space-neon/30 transition-all group shadow-sm dark:shadow-none">
+                <div key={cat.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl p-5 flex items-center justify-between hover:border-sky-300 dark:hover:border-cyan-400/30 transition-all group shadow-sm dark:shadow-none">
                     <div className="flex items-center space-x-4">
                         <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 dark:text-gray-400">
                             <Layers size={20} />
                         </div>
                         <div>
                             <h3 className="text-slate-800 dark:text-white font-bold text-lg">{cat.name}</h3>
-                            <p className="text-sky-600 dark:text-space-neon text-xs font-mono bg-sky-50 dark:bg-space-neon/10 px-2 py-0.5 rounded inline-block">ID: {cat.id}</p>
+                            <p className="text-sky-600 dark:text-cyan-400 text-xs font-mono bg-sky-50 dark:bg-cyan-400/10 px-2 py-0.5 rounded inline-block">ID: {cat.id}</p>
                         </div>
                     </div>
                     
@@ -152,7 +152,7 @@ const CategoryManagement: React.FC = () => {
           {/* Edit/Create Form */}
           <div className="lg:col-span-1">
              {isEditing ? (
-               <div className="bg-white dark:bg-space-800 border border-slate-200 dark:border-white/20 rounded-xl p-6 sticky top-24 shadow-2xl">
+               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/20 rounded-xl p-6 sticky top-24 shadow-2xl">
                  <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center">
                    {isCreating ? 'Tạo danh mục mới' : 'Cập nhật danh mục'}
                  </h3>
@@ -163,7 +163,7 @@ const CategoryManagement: React.FC = () => {
                         type="text" 
                         value={formData.name}
                         onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                         placeholder="VD: Viễn thám"
                         required
                       />
@@ -174,7 +174,7 @@ const CategoryManagement: React.FC = () => {
                         type="text" 
                         value={formData.id}
                         onChange={(e) => setFormData({...formData, id: e.target.value})}
-                        className={`w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none font-mono text-sm ${!isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none font-mono text-sm ${!isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
                         placeholder="VD: vien-tham"
                         readOnly={!isCreating}
                         required
@@ -186,7 +186,7 @@ const CategoryManagement: React.FC = () => {
                       <button 
                         type="submit" 
                         disabled={loading}
-                        className="flex-1 bg-sky-500 dark:bg-space-neon text-white dark:text-space-900 font-bold py-2 rounded hover:bg-sky-600 dark:hover:bg-white transition-colors flex justify-center items-center disabled:opacity-50"
+                        className="flex-1 bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950 font-bold py-2 rounded hover:bg-sky-600 dark:hover:bg-cyan-300 transition-colors flex justify-center items-center disabled:opacity-50"
                       >
                         <Save size={16} className="mr-2" /> {loading ? '...' : 'Lưu'}
                       </button>
@@ -201,7 +201,7 @@ const CategoryManagement: React.FC = () => {
                  </form>
                </div>
              ) : (
-               <div className="bg-white/50 dark:bg-space-900/50 border border-dashed border-slate-300 dark:border-white/10 rounded-xl p-8 flex flex-col items-center justify-center text-center h-full text-slate-400 dark:text-gray-500 min-h-[200px]">
+               <div className="bg-white/50 dark:bg-slate-900/50 border border-dashed border-slate-300 dark:border-white/10 rounded-xl p-8 flex flex-col items-center justify-center text-center h-full text-slate-400 dark:text-gray-500 min-h-[200px]">
                  <Layers size={48} className="mb-4 opacity-20" />
                  <p>Chọn một danh mục để sửa hoặc tạo mới.</p>
                </div>

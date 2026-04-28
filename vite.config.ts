@@ -18,6 +18,8 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    host: true,
+    port: 4000,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5001',

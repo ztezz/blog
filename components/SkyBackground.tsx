@@ -32,8 +32,8 @@ const SkyBackground: React.FC = () => {
 
       {/* MOVING OBJECTS */}
       
-      {/* Rocket - Positioned in Header area, Flying Vertically */}
-      <div className="absolute top-28 right-[15%] md:right-[10%] animate-float z-10 opacity-90">
+      {/* Rocket - Positioned as background element */}
+      <div className="absolute top-28 right-[15%] md:right-[10%] animate-float z-[-1] opacity-70">
         <div className="relative transform -rotate-45"> {/* Rotate -45deg to point straight UP */}
             <Rocket size={56} className="text-sky-600 fill-white" />
             {/* Rocket Trail - Vertical Down */}

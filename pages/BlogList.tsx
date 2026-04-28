@@ -84,7 +84,7 @@ const BlogList: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-space-neon to-space-purple mb-4">Kho Tàng Kiến Thức</h1>
-          <p className="text-gray-400 max-w-2xl mx-auto">
+          <p className="text-gray-600 dark:text-gray-100 max-w-2xl mx-auto">
             Cập nhật những bài viết mới nhất về công nghệ bản đồ, vệ tinh và nghiên cứu vũ trụ.
           </p>
         </div>
@@ -100,7 +100,7 @@ const BlogList: React.FC = () => {
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
                   activeCategory === cat.id
                     ? 'bg-space-neon text-space-900 shadow-[0_0_10px_rgba(102,252,241,0.4)]'
-                    : 'bg-space-800 text-gray-300 hover:bg-white/10'
+                    : 'bg-space-800 text-gray-100 hover:bg-white/10'
                 }`}
               >
                 {cat.name}
@@ -143,12 +143,12 @@ const BlogList: React.FC = () => {
                     <h2 className="text-xl font-bold text-white mb-3 group-hover:text-space-neon transition-colors">
                       {post.title}
                     </h2>
-                    <p className="text-gray-400 text-sm line-clamp-3 mb-4 flex-grow">
+                    <p className="text-gray-200 text-sm line-clamp-3 mb-4 flex-grow">
                       {post.excerpt}
                     </p>
                     <div className="flex flex-wrap gap-2 mt-auto">
                       {post.tags.map(tag => (
-                        <span key={tag} className="text-xs bg-white/5 text-gray-300 px-2 py-1 rounded border border-white/5">#{tag}</span>
+                        <span key={tag} className="text-xs bg-white/5 text-gray-100 px-2 py-1 rounded border border-white/5">#{tag}</span>
                       ))}
                     </div>
                   </div>

@@ -24,7 +24,7 @@ const PostDetail: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-500 dark:border-space-neon"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sky-500 dark:border-cyan-400"></div>
       </div>
     );
   }
@@ -34,7 +34,7 @@ const PostDetail: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-3xl text-slate-800 dark:text-white mb-4">Bài viết không tồn tại</h2>
-          <Link to="/blog" className="text-sky-600 dark:text-space-neon hover:underline">Quay lại danh sách</Link>
+          <Link to="/blog" className="text-sky-600 dark:text-cyan-400 hover:underline">Quay lại danh sách</Link>
         </div>
       </div>
     );
@@ -44,7 +44,7 @@ const PostDetail: React.FC = () => {
     <article className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {/* Back Button */}
-        <Link to="/blog" className="inline-flex items-center text-slate-500 hover:text-sky-600 dark:text-gray-400 dark:hover:text-space-neon mb-8 transition-colors">
+        <Link to="/blog" className="inline-flex items-center text-slate-500 hover:text-sky-600 dark:text-gray-400 dark:hover:text-cyan-400 mb-8 transition-colors">
           <ArrowLeft size={20} className="mr-2" /> Quay lại danh sách
         </Link>
 
@@ -62,7 +62,7 @@ const PostDetail: React.FC = () => {
           </h1>
           
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-white/10 pb-8">
-            <div className="flex items-center space-x-6 text-slate-500 dark:text-gray-400 text-sm">
+            <div className="flex items-center space-x-6 text-slate-700 dark:text-gray-200 text-sm">
               <div className="flex items-center">
                 <div className="w-10 h-10 rounded-full bg-sky-500 dark:bg-space-purple flex items-center justify-center text-white font-bold mr-3">
                   {post.author.charAt(0)}
@@ -93,8 +93,8 @@ const PostDetail: React.FC = () => {
             prose-strong:text-slate-900 dark:prose-strong:text-white
             prose-code:text-sky-700 dark:prose-code:text-space-neon
             prose-blockquote:border-sky-500 dark:prose-blockquote:border-space-neon
-            [&_p]:!text-slate-700 dark:[&_p]:!text-gray-300
-            [&_li]:!text-slate-700 dark:[&_li]:!text-gray-300
+            [&_p]:!text-slate-700 dark:[&_p]:!text-gray-100
+            [&_li]:!text-slate-700 dark:[&_li]:!text-gray-100
           "
           dangerouslySetInnerHTML={{ __html: post.content }} 
         />

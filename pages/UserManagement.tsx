@@ -94,7 +94,7 @@ const UserManagement: React.FC = () => {
           {!isEditing && (
             <button 
               onClick={handleCreate}
-              className="flex items-center px-4 py-2 bg-sky-500 dark:bg-space-neon text-white dark:text-space-900 rounded font-bold hover:bg-sky-600 dark:hover:bg-white transition-colors shadow-lg shadow-sky-500/30 dark:shadow-[0_0_10px_rgba(102,252,241,0.3)]"
+              className="flex items-center px-4 py-2 bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950 rounded font-bold hover:bg-sky-600 dark:hover:bg-cyan-300 transition-colors shadow-lg shadow-sky-500/30 dark:shadow-[0_0_10px_rgba(34,211,238,0.3)]"
             >
               <Plus size={18} className="mr-2" /> Thêm người dùng
             </button>
@@ -105,15 +105,15 @@ const UserManagement: React.FC = () => {
           {/* User List */}
           <div className="lg:col-span-2 space-y-4">
             {users.map((user) => (
-              <div key={user.id} className="bg-white dark:bg-space-800 border border-slate-200 dark:border-white/10 rounded-xl p-5 flex items-center justify-between hover:border-sky-300 dark:hover:border-space-neon/30 transition-all group shadow-sm dark:shadow-none">
+              <div key={user.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl p-5 flex items-center justify-between hover:border-sky-300 dark:hover:border-cyan-400/30 transition-all group shadow-sm dark:shadow-none">
                 <div className="flex items-center space-x-4">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${user.role === 'admin' ? 'bg-sky-500 dark:bg-space-neon text-white dark:text-space-900' : 'bg-purple-500 dark:bg-space-purple text-white'}`}>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${user.role === 'admin' ? 'bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950' : 'bg-purple-500 dark:bg-purple-400 text-white'}`}>
                     {user.username.charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <h3 className="text-slate-900 dark:text-white font-bold text-lg flex items-center">
                       {user.displayName}
-                      {user.role === 'admin' && <Shield size={14} className="ml-2 text-sky-500 dark:text-space-neon" />}
+                      {user.role === 'admin' && <Shield size={14} className="ml-2 text-sky-500 dark:text-cyan-400" />}
                     </h3>
                     <p className="text-slate-500 dark:text-gray-400 text-sm">@{user.username}</p>
                   </div>
@@ -144,7 +144,7 @@ const UserManagement: React.FC = () => {
           {/* Edit/Create Form Side */}
           <div className="lg:col-span-1">
              {isEditing ? (
-               <div className="bg-white dark:bg-space-800 border border-slate-200 dark:border-white/20 rounded-xl p-6 sticky top-24 shadow-2xl">
+               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/20 rounded-xl p-6 sticky top-24 shadow-2xl">
                  <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center">
                    {formData.id.includes('new') ? 'Tạo tài khoản' : 'Cập nhật tài khoản'}
                  </h3>
@@ -155,7 +155,7 @@ const UserManagement: React.FC = () => {
                         type="text" 
                         value={formData.displayName}
                         onChange={(e) => setFormData({...formData, displayName: e.target.value})}
-                        className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                         placeholder="VD: Quản trị viên"
                         required
                       />
@@ -166,7 +166,7 @@ const UserManagement: React.FC = () => {
                         type="text" 
                         value={formData.username}
                         onChange={(e) => setFormData({...formData, username: e.target.value})}
-                        className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                         placeholder="VD: admin"
                         required
                       />
@@ -177,7 +177,7 @@ const UserManagement: React.FC = () => {
                         type="text" 
                         value={formData.password}
                         onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                         placeholder="••••••"
                         required
                       />
@@ -187,7 +187,7 @@ const UserManagement: React.FC = () => {
                       <select
                          value={formData.role}
                          onChange={(e) => setFormData({...formData, role: e.target.value as 'admin' | 'editor'})}
-                         className="w-full bg-slate-50 dark:bg-space-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-space-neon outline-none"
+                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                       >
                         <option value="admin">Admin (Toàn quyền)</option>
                         <option value="editor">Editor (Biên tập)</option>
@@ -198,7 +198,7 @@ const UserManagement: React.FC = () => {
                       <button 
                         type="submit" 
                         disabled={loading}
-                        className="flex-1 bg-sky-500 dark:bg-space-neon text-white dark:text-space-900 font-bold py-2 rounded hover:bg-sky-600 dark:hover:bg-white transition-colors flex justify-center items-center disabled:opacity-50"
+                        className="flex-1 bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950 font-bold py-2 rounded hover:bg-sky-600 dark:hover:bg-cyan-300 transition-colors flex justify-center items-center disabled:opacity-50"
                       >
                         <Save size={16} className="mr-2" /> {loading ? '...' : 'Lưu'}
                       </button>
@@ -213,7 +213,7 @@ const UserManagement: React.FC = () => {
                  </form>
                </div>
              ) : (
-               <div className="bg-white/50 dark:bg-space-900/50 border border-dashed border-slate-300 dark:border-white/10 rounded-xl p-8 flex flex-col items-center justify-center text-center h-full text-slate-400 dark:text-gray-500 min-h-[200px]">
+               <div className="bg-white/50 dark:bg-slate-900/50 border border-dashed border-slate-300 dark:border-white/10 rounded-xl p-8 flex flex-col items-center justify-center text-center h-full text-slate-400 dark:text-gray-500 min-h-[200px]">
                  <UserIcon size={48} className="mb-4 opacity-20" />
                  <p>Chọn một người dùng để sửa hoặc nhấn "Thêm người dùng" để tạo mới.</p>
                </div>
