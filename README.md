@@ -59,8 +59,11 @@ CosmoGIS là một nền tảng WebGIS hiện đại kết hợp giữa công ng
 
 - Build command: `npm run build:frontend`
 - Build output directory: `dist`
+- Deploy command: để trống vì Cloudflare Pages tự xuất bản thư mục `dist` sau khi build.
 - Environment variable: `VITE_API_URL=https://api.example.com/api`
 - File `public/_redirects` đã cấu hình fallback cho React Router.
+
+Nếu dùng Cloudflare Workers Builds thay vì Pages, sử dụng deploy command `npx wrangler deploy`. File `wrangler.jsonc` đã cấu hình `dist` là static assets và bật SPA fallback mà không phụ thuộc vào phiên bản Vite.
 
 ## Triển khai backend trên server riêng
 

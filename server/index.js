@@ -203,6 +203,19 @@ const fixUrl = (url) => {
 
 // --- API ROUTES ---
 
+app.get('/', (req, res) => {
+  res.json({
+    service: 'CosmoGIS API',
+    status: 'ok',
+    health: '/health',
+    api: '/api'
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // 0. Database Restore
 app.post('/api/restore-db', async (req, res) => {
   try {
