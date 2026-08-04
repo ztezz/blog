@@ -5,7 +5,7 @@ import { BLOG_POSTS as INITIAL_POSTS, CATEGORIES as INITIAL_CATEGORIES } from '.
 // --- Configuration ---
 // Set to true to use the Real API. 
 const USE_API = true; 
-const API_URL = '/api';
+export const API_URL = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
 const STORAGE_KEY = 'cosmogis_posts';
 const AUTH_KEY = 'cosmogis_auth_user'; 

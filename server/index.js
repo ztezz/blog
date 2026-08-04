@@ -1,4 +1,6 @@
 
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -8,11 +10,22 @@ const multer = require('multer'); // Import multer
 const db = require('./db');
 
 const app = express();
-// Đặt cổng cứng là 5001
-const port = 5001;
+const port = Number(process.env.PORT || 5001);
+const frontendOrigins = (process.env.FRONTEND_URL || 'http://localhost:4000')
+  .split(',')
+  .map(origin => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+const publicApiUrl = (process.env.PUBLIC_API_URL || `http://localhost:${port}`).replace(/\/$/, '');
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || frontendOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+  }
+}));
 app.use(bodyParser.json());
 
 // Logger middleware (chỉ log API request cơ bản)
@@ -49,7 +62,7 @@ const initDb = async () => {
     `);
 
     // Seed Admin User
-    const userCheck = await db.query('SELECT count(*) FROM users');
+    const userCheck = await db.query('SELECT count(*) AS count FROM users');
     if (parseInt(userCheck.rows[0].count) === 0) {
       console.log('[System] Seeding default admin...');
       await db.query(`
@@ -58,16 +71,16 @@ const initDb = async () => {
       `);
     }
 
-    // 2. Settings Table (Use JSONB for complex fields)
+    // 2. Settings Table
     await db.query(`
       CREATE TABLE IF NOT EXISTS settings (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         site_name_prefix VARCHAR(100),
         site_name_suffix VARCHAR(100),
         footer_description TEXT,
         footer_copyright VARCHAR(255),
-        navigation JSONB,
-        social_links JSONB,
+        navigation TEXT,
+        social_links TEXT,
         logo_url TEXT,
         favicon_url TEXT,
         about_content TEXT,
@@ -77,7 +90,7 @@ const initDb = async () => {
     `);
     
     // Seed Settings
-    const settingsCheck = await db.query('SELECT count(*) FROM settings');
+    const settingsCheck = await db.query('SELECT count(*) AS count FROM settings');
     if (parseInt(settingsCheck.rows[0].count) === 0) {
         console.log('[System] Seeding default settings...');
         const defaultNav = JSON.stringify([
@@ -103,7 +116,7 @@ const initDb = async () => {
         author VARCHAR(100),
         date VARCHAR(20),
         category VARCHAR(50),
-        tags JSONB, 
+        tags TEXT,
         image_url TEXT,
         read_time VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -113,13 +126,13 @@ const initDb = async () => {
     // 4. Messages Table
     await db.query(`
       CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         name VARCHAR(255),
         email VARCHAR(255),
         subject VARCHAR(255),
         message TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        read_status BOOLEAN DEFAULT FALSE
+        read_status INTEGER DEFAULT 0
       );
     `);
 
@@ -131,29 +144,17 @@ const initDb = async () => {
       );
     `);
      // Seed Categories
-    const catCheck = await db.query('SELECT count(*) FROM categories');
+    const catCheck = await db.query('SELECT count(*) AS count FROM categories');
     if (parseInt(catCheck.rows[0].count) === 0) {
       for (const cat of INITIAL_CATEGORIES) {
-        await db.query('INSERT INTO categories (id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING', [cat.id, cat.name]);
+        await db.query('INSERT OR IGNORE INTO categories (id, name) VALUES ($1, $2)', [cat.id, cat.name]);
       }
     }
-    
-    // Migration for new columns (safe to keep)
-    try {
-        await db.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS about_content TEXT;`);
-        await db.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS contact_content TEXT;`);
-        await db.query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS page_title VARCHAR(255);`);
-        // Ensure JSONB types if upgrading from older schema
-        await db.query(`ALTER TABLE settings ALTER COLUMN navigation TYPE JSONB USING navigation::JSONB;`);
-        await db.query(`ALTER TABLE settings ALTER COLUMN social_links TYPE JSONB USING social_links::JSONB;`);
-        await db.query(`ALTER TABLE posts ALTER COLUMN tags TYPE JSONB USING tags::JSONB;`);
-    } catch (e) { 
-        // Ignore errors if types are already correct or columns exist
-    }
 
-    console.log('[System] Database Schema Verified & Updated.');
+    console.log(`[System] SQLite database ready: ${db.databasePath}`);
   } catch (err) {
     console.error('[System] CRITICAL DB INIT ERROR:', err);
+    throw err;
   }
 };
 
@@ -185,14 +186,17 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  res.json({ url: `/api/uploads/${req.file.filename}` });
+  res.json({ url: `${publicApiUrl}/api/uploads/${req.file.filename}` });
 });
 
-// Helper: Fix URL nếu thiếu /api
+// Return absolute media URLs because the frontend and API use different domains.
 const fixUrl = (url) => {
   if (!url) return url;
   if (url.startsWith('/uploads/')) {
-    return '/api' + url;
+    return publicApiUrl + '/api' + url;
+  }
+  if (url.startsWith('/')) {
+    return publicApiUrl + url;
   }
   return url;
 };
@@ -207,44 +211,9 @@ app.post('/api/restore-db', async (req, res) => {
       return res.status(404).json({ error: 'File SQL không tồn tại!' });
     }
 
-    let sql = fs.readFileSync(sqlFilePath, 'utf8');
-    
-    // PHẦN SỬA LỖI: Tách và xử lý COPY commands
-    // Thư viện pg.query không hỗ trợ lệnh COPY ... FROM stdin
-    // Chúng ta sẽ chuyển đổi COPY thành INSERT hoặc bỏ qua nếu không cần thiết.
-    // Cách đơn giản nhất để fix lỗi "syntax error at or near gis" của psql dump là:
-    
-    const lines = sql.split('\n');
-    let processedSql = "";
-    let inCopyBlock = false;
-
-    for (let line of lines) {
-        const trimmed = line.trim();
-        
-        // Bỏ qua các lệnh điều khiển psql (\set, \connect, v.v.)
-        if (trimmed.startsWith('\\') && trimmed !== '\\.') continue;
-
-        // Xử lý khối COPY
-        if (trimmed.toUpperCase().startsWith('COPY ')) {
-            inCopyBlock = true;
-            continue; // Bỏ qua dòng lệnh COPY
-        }
-        
-        if (trimmed === '\\.') {
-            inCopyBlock = false;
-            continue; // Kết thúc khối dữ liệu
-        }
-
-        // Nếu đang trong khối dữ liệu của COPY, bỏ qua vì pg driver không hiểu format stdin
-        if (inCopyBlock) continue;
-
-        processedSql += line + '\n';
-    }
-
-    await db.query(processedSql);
-    
-    console.log('[System] Database schema restored successfully (Data seeding skipped for COPY commands)');
-    res.json({ message: 'Khôi phục cấu trúc database thành công! (Dữ liệu COPY được bỏ qua để tránh lỗi driver)' });
+    const imported = db.importPostgresDump(fs.readFileSync(sqlFilePath, 'utf8'));
+    console.log('[System] PostgreSQL dump imported into SQLite:', imported);
+    res.json({ message: 'Khôi phục dữ liệu vào SQLite thành công!', imported });
   } catch (err) {
     console.error('Restore Error:', err);
     res.status(500).json({ error: 'Khôi phục database thất bại: ' + err.message });
@@ -264,8 +233,8 @@ app.get('/api/settings', async (req, res) => {
         faviconUrl: fixUrl(s.favicon_url),
         footerDescription: s.footer_description,
         footerCopyright: s.footer_copyright,
-        navigation: s.navigation,
-        socialLinks: s.social_links,
+        navigation: JSON.parse(s.navigation || '[]'),
+        socialLinks: JSON.parse(s.social_links || '{}'),
         aboutContent: s.about_content,
         contactContent: s.contact_content,
         pageTitle: s.page_title
@@ -301,8 +270,8 @@ app.post('/api/settings', async (req, res) => {
         s.siteNameSuffix, 
         s.footerDescription, 
         s.footerCopyright, 
-        JSON.stringify(s.navigation), // FIX: Stringify explicitly for JSONB
-        JSON.stringify(s.socialLinks), // FIX: Stringify explicitly for JSONB
+        JSON.stringify(s.navigation),
+        JSON.stringify(s.socialLinks),
         s.logoUrl,
         s.faviconUrl,
         s.aboutContent,
@@ -368,7 +337,7 @@ app.get('/api/posts', async (req, res) => {
       author: p.author,
       date: p.date,
       category: p.category,
-      tags: p.tags, // JSONB returns object/array automatically
+      tags: JSON.parse(p.tags || '[]'),
       imageUrl: fixUrl(p.image_url),
       readTime: p.read_time
     }));
@@ -392,7 +361,7 @@ app.get('/api/posts/:id', async (req, res) => {
         author: p.author,
         date: p.date,
         category: p.category,
-        tags: p.tags,
+        tags: JSON.parse(p.tags || '[]'),
         imageUrl: fixUrl(p.image_url),
         readTime: p.read_time
       });
@@ -543,25 +512,10 @@ app.all('/api/*', (req, res) => {
   res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.url}` });
 });
 
-// Serve Static Files for Build
-app.use(express.static(path.join(__dirname, '../dist'), {
-  index: false,
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    }
-  }
-}));
-
-// Fallback for SPA routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
-});
-
 // Initialize DB then Start Server
 initDb().then(() => {
     app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
+      console.log(`API server running on port ${port}`);
       console.log('Routes registered: /api/messages, /api/posts, /api/users, /api/settings, /api/categories');
     });
 });

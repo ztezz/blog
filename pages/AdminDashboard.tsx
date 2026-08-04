@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database } from 'lucide-react';
-import { getPosts, deletePost, logout, isAuthenticated } from '../utils/storage';
+import { API_URL, getPosts, deletePost, logout, isAuthenticated } from '../utils/storage';
 import { BlogPost } from '../types';
 
 const AdminDashboard: React.FC = () => {
@@ -42,7 +42,7 @@ const AdminDashboard: React.FC = () => {
 
     setIsRestoring(true);
     try {
-      const response = await fetch('/api/restore-db', {
+      const response = await fetch(`${API_URL}/restore-db`, {
         method: 'POST',
       });
       const data = await response.json();
