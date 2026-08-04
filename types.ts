@@ -47,7 +47,7 @@ export interface SiteSettings {
 export interface User {
   id: string;
   username: string;
-  password: string; // In real app, this should be hashed
+  password: string;
   displayName: string;
   role: 'admin' | 'editor';
 }

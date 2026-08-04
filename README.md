@@ -74,6 +74,7 @@ Nếu dùng Cloudflare Workers Builds thay vì Pages, sử dụng deploy command
 - Trỏ DNS của tên miền API, ví dụ `api.example.com`, tới server và cấu hình HTTPS bằng reverse proxy như Nginx hoặc Caddy.
 - Đặt `SQLITE_PATH` trên volume/ổ đĩa bền vững và sao lưu cả file SQLite lẫn thư mục `server/uploads`.
 - Nút khôi phục trong trang quản trị có thể nhập dữ liệu từ các khối `COPY` của file dump PostgreSQL `dulieu_webgis_2026-04-02.sql` vào SQLite. Thao tác này thay thế dữ liệu hiện có trong các bảng tương ứng.
+- Mật khẩu được hash bằng bcrypt. Khi backend khởi động hoặc nhập dump cũ, các mật khẩu plaintext hiện có được tự động chuyển thành hash. Dùng `ADMIN_PASSWORD` để đặt mật khẩu admin khi tạo database mới và `BCRYPT_ROUNDS` để điều chỉnh cost (mặc định `12`).
 
 ## 📄 Ghi chú
 Dự án được khởi tạo từ AI Studio và được tùy chỉnh chuyên sâu cho mục đích quản lý WebGIS không gian.

@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer'); // Import multer
@@ -16,6 +17,22 @@ const frontendOrigins = (process.env.FRONTEND_URL || 'http://localhost:4000')
   .map(origin => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 const publicApiUrl = (process.env.PUBLIC_API_URL || `http://localhost:${port}`).replace(/\/$/, '');
+const passwordRounds = Number(process.env.BCRYPT_ROUNDS || 12);
+const isPasswordHash = (password) => /^\$2[aby]\$\d{2}\$/.test(password || '');
+
+const hashPlaintextPasswords = async () => {
+  const result = await db.query('SELECT id, password FROM users');
+  const plaintextUsers = result.rows.filter(user => !isPasswordHash(user.password));
+
+  for (const user of plaintextUsers) {
+    const passwordHash = await bcrypt.hash(user.password, passwordRounds);
+    await db.query('UPDATE users SET password = $1 WHERE id = $2', [passwordHash, user.id]);
+  }
+
+  if (plaintextUsers.length > 0) {
+    console.log(`[System] Hashed ${plaintextUsers.length} plaintext password(s).`);
+  }
+};
 
 // Middleware
 app.use(cors({
@@ -65,11 +82,14 @@ const initDb = async () => {
     const userCheck = await db.query('SELECT count(*) AS count FROM users');
     if (parseInt(userCheck.rows[0].count) === 0) {
       console.log('[System] Seeding default admin...');
-      await db.query(`
-        INSERT INTO users (id, username, password, display_name, role) 
-        VALUES ('admin-01', 'admin', '123', 'Administrator', 'admin')
-      `);
+      const defaultAdminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || '123', passwordRounds);
+      await db.query(
+        'INSERT INTO users (id, username, password, display_name, role) VALUES ($1, $2, $3, $4, $5)',
+        ['admin-01', 'admin', defaultAdminHash, 'Administrator', 'admin']
+      );
     }
+
+    await hashPlaintextPasswords();
 
     // 2. Settings Table
     await db.query(`
@@ -225,6 +245,7 @@ app.post('/api/restore-db', async (req, res) => {
     }
 
     const imported = db.importPostgresDump(fs.readFileSync(sqlFilePath, 'utf8'));
+    await hashPlaintextPasswords();
     console.log('[System] PostgreSQL dump imported into SQLite:', imported);
     res.json({ message: 'Khôi phục dữ liệu vào SQLite thành công!', imported });
   } catch (err) {
@@ -423,9 +444,9 @@ app.delete('/api/posts/:id', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   try {
-    const result = await db.query('SELECT * FROM users WHERE username = $1 AND password = $2', [username, password]);
-    if (result.rows.length > 0) {
-      const u = result.rows[0];
+    const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
+    const u = result.rows[0];
+    if (u && await bcrypt.compare(password || '', u.password)) {
       res.json({
         id: u.id,
         username: u.username,
@@ -456,14 +477,26 @@ app.post('/api/users', async (req, res) => {
   try {
     const check = await db.query('SELECT id FROM users WHERE id = $1', [u.id]);
     if (check.rows.length > 0) {
-      await db.query(
-        `UPDATE users SET username=$1, password=$2, display_name=$3, role=$4 WHERE id=$5`,
-        [u.username, u.password, u.displayName, u.role, u.id]
-      );
+      if (u.password) {
+        const passwordHash = await bcrypt.hash(u.password, passwordRounds);
+        await db.query(
+          `UPDATE users SET username=$1, password=$2, display_name=$3, role=$4 WHERE id=$5`,
+          [u.username, passwordHash, u.displayName, u.role, u.id]
+        );
+      } else {
+        await db.query(
+          `UPDATE users SET username=$1, display_name=$2, role=$3 WHERE id=$4`,
+          [u.username, u.displayName, u.role, u.id]
+        );
+      }
     } else {
+      if (!u.password) {
+        return res.status(400).json({ error: 'Password is required' });
+      }
+      const passwordHash = await bcrypt.hash(u.password, passwordRounds);
       await db.query(
         `INSERT INTO users (id, username, password, display_name, role) VALUES ($1, $2, $3, $4, $5)`,
-        [u.id, u.username, u.password, u.displayName, u.role]
+        [u.id, u.username, passwordHash, u.displayName, u.role]
       );
     }
     res.json({ success: true });

@@ -12,6 +12,7 @@ const UserManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   
   const [isEditing, setIsEditing] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState<User>({
     id: '',
     username: '',
@@ -34,7 +35,8 @@ const UserManagement: React.FC = () => {
   };
 
   const handleEdit = (user: User) => {
-    setFormData(user);
+    setFormData({ ...user, password: '' });
+    setIsCreating(false);
     setIsEditing(true);
   };
 
@@ -46,6 +48,7 @@ const UserManagement: React.FC = () => {
       displayName: '',
       role: 'editor'
     });
+    setIsCreating(true);
     setIsEditing(true);
   };
 
@@ -62,8 +65,8 @@ const UserManagement: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.username || !formData.password) {
-      alert("Vui lòng nhập tên đăng nhập và mật khẩu");
+    if (!formData.username || (isCreating && !formData.password)) {
+      alert(isCreating ? "Vui lòng nhập tên đăng nhập và mật khẩu" : "Vui lòng nhập tên đăng nhập");
       return;
     }
     setLoading(true);
@@ -146,13 +149,13 @@ const UserManagement: React.FC = () => {
              {isEditing ? (
                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/20 rounded-xl p-6 sticky top-24 shadow-2xl">
                  <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6 flex items-center">
-                   {formData.id.includes('new') ? 'Tạo tài khoản' : 'Cập nhật tài khoản'}
+                    {isCreating ? 'Tạo tài khoản' : 'Cập nhật tài khoản'}
                  </h3>
                  <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                      <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Tên hiển thị</label>
-                      <input 
-                        type="text" 
+                       <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Tên hiển thị</label>
+                       <input
+                         type="text"
                         value={formData.displayName}
                         onChange={(e) => setFormData({...formData, displayName: e.target.value})}
                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
@@ -161,9 +164,9 @@ const UserManagement: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Tên đăng nhập</label>
-                      <input 
-                        type="text" 
+                       <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Tên đăng nhập</label>
+                       <input
+                         type="text"
                         value={formData.username}
                         onChange={(e) => setFormData({...formData, username: e.target.value})}
                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
@@ -172,14 +175,14 @@ const UserManagement: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Mật khẩu</label>
-                      <input 
-                        type="text" 
+                       <label className="block text-xs text-slate-500 dark:text-gray-400 mb-1">Mật khẩu</label>
+                       <input
+                         type="password"
                         value={formData.password}
                         onChange={(e) => setFormData({...formData, password: e.target.value})}
                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
-                        placeholder="••••••"
-                        required
+                         placeholder={isCreating ? 'Nhập mật khẩu' : 'Để trống nếu không đổi'}
+                         required={isCreating}
                       />
                     </div>
                     <div>
