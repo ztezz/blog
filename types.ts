@@ -50,6 +50,7 @@ export interface User {
   password: string;
   displayName: string;
   role: 'admin' | 'editor';
+  token?: string;
 }
 
 export interface ContactMessage {

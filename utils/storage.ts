@@ -42,7 +42,12 @@ export const calculateReadTime = (content: string): string => {
 
 // --- API Client Helpers ---
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${endpoint}`, options);
+  const currentUser = getCurrentUser();
+  const headers = new Headers(options?.headers);
+  if (currentUser?.token) {
+    headers.set('Authorization', `Bearer ${currentUser.token}`);
+  }
+  const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
   
   const contentType = res.headers.get("content-type");
   if (!contentType || contentType.indexOf("application/json") === -1) {
@@ -66,8 +71,10 @@ export const uploadImage = async (file: File): Promise<string> => {
     const formData = new FormData();
     formData.append('file', file);
     
+    const currentUser = getCurrentUser();
     const res = await fetch(`${API_URL}/upload`, {
       method: 'POST',
+      headers: currentUser?.token ? { Authorization: `Bearer ${currentUser.token}` } : undefined,
       body: formData
     });
     
@@ -298,7 +305,7 @@ export const logout = (): void => {
 };
 
 export const isAuthenticated = (): boolean => {
-  return !!localStorage.getItem(AUTH_KEY);
+  return !!getCurrentUser()?.token;
 };
 
 export const getCurrentUser = (): User | null => {

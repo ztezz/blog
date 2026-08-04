@@ -5,6 +5,9 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer'); // Import multer
@@ -18,7 +21,40 @@ const frontendOrigins = (process.env.FRONTEND_URL || 'http://localhost:4000')
   .filter(Boolean);
 const publicApiUrl = (process.env.PUBLIC_API_URL || `http://localhost:${port}`).replace(/\/$/, '');
 const passwordRounds = Number(process.env.BCRYPT_ROUNDS || 12);
+const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'development-only-secret' : '');
+const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '8h';
 const isPasswordHash = (password) => /^\$2[aby]\$\d{2}\$/.test(password || '');
+
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET is required when NODE_ENV=production');
+}
+
+const authenticate = (req, res, next) => {
+  const authorization = req.get('authorization') || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+
+  try {
+    req.user = jwt.verify(token, jwtSecret);
+    return next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+};
+
+const authorize = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  return next();
+};
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts. Please try again later.' }
+});
 
 const hashPlaintextPasswords = async () => {
   const result = await db.query('SELECT id, password FROM users');
@@ -35,15 +71,26 @@ const hashPlaintextPasswords = async () => {
 };
 
 // Middleware
+app.disable('x-powered-by');
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
   origin(origin, callback) {
     if (!origin || frontendOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+    const error = new Error(`Origin not allowed by CORS: ${origin}`);
+    error.status = 403;
+    return callback(error);
   }
 }));
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '1mb' }));
+
+app.use((err, req, res, next) => {
+  if (err.status === 403) {
+    return res.status(403).json({ error: err.message });
+  }
+  return next(err);
+});
 
 // Logger middleware (chỉ log API request cơ bản)
 app.use((req, res, next) => {
@@ -195,14 +242,24 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage: storage });
+const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter(req, file, callback) {
+    if (!allowedImageTypes.has(file.mimetype)) {
+      return callback(new Error('Only JPEG, PNG, GIF and WebP images are allowed'));
+    }
+    return callback(null, true);
+  }
+});
 
 // --- STATIC FILE SERVING ---
 app.use('/api/uploads', express.static(uploadDir));
 app.use('/uploads', express.static(uploadDir));
 
 // Route Upload
-app.post('/api/upload', upload.single('file'), (req, res) => {
+app.post('/api/upload', authenticate, authorize('admin', 'editor'), upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
@@ -237,7 +294,7 @@ app.get('/health', (req, res) => {
 });
 
 // 0. Database Restore
-app.post('/api/restore-db', async (req, res) => {
+app.post('/api/restore-db', authenticate, authorize('admin'), async (req, res) => {
   try {
     const sqlFilePath = path.join(__dirname, '..', 'dulieu_webgis_2026-04-02.sql');
     if (!fs.existsSync(sqlFilePath)) {
@@ -282,7 +339,7 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-app.post('/api/settings', async (req, res) => {
+app.post('/api/settings', authenticate, authorize('admin'), async (req, res) => {
   const s = req.body;
   try {
     await db.query(
@@ -331,7 +388,7 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', authenticate, authorize('admin'), async (req, res) => {
   const c = req.body;
   try {
     // Check exist
@@ -348,7 +405,7 @@ app.post('/api/categories', async (req, res) => {
   }
 });
 
-app.delete('/api/categories/:id', async (req, res) => {
+app.delete('/api/categories/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
     await db.query('DELETE FROM categories WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -408,7 +465,7 @@ app.get('/api/posts/:id', async (req, res) => {
   }
 });
 
-app.post('/api/posts', async (req, res) => {
+app.post('/api/posts', authenticate, authorize('admin', 'editor'), async (req, res) => {
   const p = req.body;
   try {
     const check = await db.query('SELECT id FROM posts WHERE id = $1', [p.id]);
@@ -430,7 +487,7 @@ app.post('/api/posts', async (req, res) => {
   }
 });
 
-app.delete('/api/posts/:id', async (req, res) => {
+app.delete('/api/posts/:id', authenticate, authorize('admin', 'editor'), async (req, res) => {
   try {
     await db.query('DELETE FROM posts WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -441,17 +498,23 @@ app.delete('/api/posts/:id', async (req, res) => {
 });
 
 // 4. Users
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
   try {
     const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
     const u = result.rows[0];
     if (u && await bcrypt.compare(password || '', u.password)) {
+      const token = jwt.sign(
+        { sub: u.id, username: u.username, role: u.role },
+        jwtSecret,
+        { expiresIn: jwtExpiresIn }
+      );
       res.json({
         id: u.id,
         username: u.username,
         displayName: u.display_name,
-        role: u.role
+        role: u.role,
+        token
       });
     } else {
       res.status(401).json({ error: 'Invalid credentials' });
@@ -462,7 +525,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', authenticate, authorize('admin'), async (req, res) => {
   try {
     const result = await db.query('SELECT id, username, display_name as "displayName", role FROM users');
     res.json(result.rows);
@@ -472,7 +535,7 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', authenticate, authorize('admin'), async (req, res) => {
   const u = req.body;
   try {
     const check = await db.query('SELECT id FROM users WHERE id = $1', [u.id]);
@@ -506,7 +569,7 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
     await db.query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -532,7 +595,7 @@ app.post('/api/messages', async (req, res) => {
   }
 });
 
-app.get('/api/messages', async (req, res) => {
+app.get('/api/messages', authenticate, authorize('admin'), async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM messages ORDER BY created_at DESC');
     res.json(result.rows);
@@ -542,7 +605,7 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-app.delete('/api/messages/:id', async (req, res) => {
+app.delete('/api/messages/:id', authenticate, authorize('admin'), async (req, res) => {
   try {
     await db.query('DELETE FROM messages WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -556,6 +619,17 @@ app.delete('/api/messages/:id', async (req, res) => {
 // Đây là nguyên nhân trả về lỗi 404 nếu route ở trên chưa được đăng ký
 app.all('/api/*', (req, res) => {
   res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.url}` });
+});
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (err.message?.startsWith('Only ')) {
+    return res.status(400).json({ error: err.message });
+  }
+  return res.status(err.status || 500).json({ error: 'Internal server error' });
 });
 
 // Initialize DB then Start Server
