@@ -5,6 +5,7 @@ const { XMLParser } = require('fast-xml-parser');
 const cheerio = require('cheerio');
 const sanitizeHtml = require('sanitize-html');
 const { z } = require('zod');
+const { ensureAutomationSettings, parseJsonArray } = require('./automation-settings');
 
 const USER_AGENT = 'CosmoGISBot/1.0 (+content research; configured sources only)';
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -177,21 +178,25 @@ const createAutomation = ({ db, env = process.env }) => {
   };
 
   const loadConfig = async () => {
-    const result = await db.query('SELECT * FROM ai_automation_settings WHERE id = 1');
-    const row = result.rows[0];
-    if (!row) return fallbackConfig;
+    let row;
+    try {
+      row = await ensureAutomationSettings(db, env);
+    } catch (error) {
+      if (String(error.message).includes('no such table')) return fallbackConfig;
+      throw error;
+    }
     return {
       enabled: Boolean(row.enabled),
       baseUrl: String(row.base_url).replace(/\/$/, ''),
       apiKey: row.api_key || '',
       model: row.model || '',
-      rssFeeds: JSON.parse(row.rss_feeds || '[]'),
-      websites: JSON.parse(row.website_urls || '[]'),
+      rssFeeds: parseJsonArray(row.rss_feeds),
+      websites: parseJsonArray(row.website_urls),
       discoveryEnabled: Boolean(row.discovery_enabled),
       discoveryModel: row.discovery_model || '',
-      discoveryTopics: JSON.parse(row.discovery_topics || '[]'),
-      allowedDomains: JSON.parse(row.allowed_domains || '[]'),
-      blockedDomains: JSON.parse(row.blocked_domains || '[]'),
+      discoveryTopics: parseJsonArray(row.discovery_topics),
+      allowedDomains: parseJsonArray(row.allowed_domains),
+      blockedDomains: parseJsonArray(row.blocked_domains),
       runHourUtc: Number(row.run_hour_utc),
       author: row.author || 'CosmoGIS AI',
       defaultImageUrl: row.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400'

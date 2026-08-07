@@ -15,6 +15,7 @@ const db = require('./db');
 const { schemas, validateBody, validateParams } = require('./validation');
 const { detectImageType } = require('./media');
 const { createAutomation } = require('./automation');
+const { ensureAutomationSettings, serializeAutomationSettings } = require('./automation-settings');
 
 const app = express();
 const port = Number(process.env.PORT || 5001);
@@ -303,23 +304,7 @@ const initDb = async () => {
         await db.query(`ALTER TABLE ai_automation_settings ADD COLUMN ${column} ${definition}`);
       }
     }
-    const envUrls = value => (value || '').split(',').map(url => url.trim()).filter(Boolean);
-    await db.query(
-      `INSERT OR IGNORE INTO ai_automation_settings
-       (id, enabled, base_url, api_key, model, rss_feeds, website_urls, run_hour_utc, author, default_image_url)
-       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        process.env.AI_AUTOMATION_ENABLED === 'true' ? 1 : 0,
-        process.env.AI_BASE_URL || 'http://localhost:20128/v1',
-        process.env.AI_API_KEY || '',
-        process.env.AI_MODEL || '',
-        JSON.stringify(envUrls(process.env.AI_RSS_FEEDS)),
-        JSON.stringify(envUrls(process.env.AI_WEBSITE_URLS)),
-        Number(process.env.AI_RUN_HOUR_UTC || 1),
-        process.env.AI_AUTHOR || 'CosmoGIS AI',
-        process.env.AI_DEFAULT_IMAGE_URL || 'https://picsum.photos/seed/cosmogis-ai/800/400'
-      ]
-    );
+    await ensureAutomationSettings(db);
      // Seed Categories
     const catCheck = await db.query('SELECT count(*) AS count FROM categories');
     if (parseInt(catCheck.rows[0].count) === 0) {
@@ -412,25 +397,8 @@ app.get('/api/automation/status', authenticate, authorize('admin'), async (req, 
 
 app.get('/api/automation/settings', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const result = await db.query('SELECT * FROM ai_automation_settings WHERE id = 1');
-    const settings = result.rows[0];
-    return res.json({
-      enabled: Boolean(settings.enabled),
-      baseUrl: settings.base_url,
-      apiKey: '',
-      hasApiKey: Boolean(settings.api_key),
-      model: settings.model,
-      rssFeeds: JSON.parse(settings.rss_feeds || '[]'),
-      websites: JSON.parse(settings.website_urls || '[]'),
-      discoveryEnabled: Boolean(settings.discovery_enabled),
-      discoveryModel: settings.discovery_model || '',
-      discoveryTopics: JSON.parse(settings.discovery_topics || '[]'),
-      allowedDomains: JSON.parse(settings.allowed_domains || '[]'),
-      blockedDomains: JSON.parse(settings.blocked_domains || '[]'),
-      runHourUtc: settings.run_hour_utc,
-      author: settings.author,
-      defaultImageUrl: settings.default_image_url
-    });
+    const settings = await ensureAutomationSettings(db);
+    return res.json(serializeAutomationSettings(settings));
   } catch (error) {
     return next(error);
   }
