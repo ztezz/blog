@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from '../utils/router';
 import { Menu, X, Globe, ChevronDown, ExternalLink, Shield, Sun, Moon } from 'lucide-react';
 import StarBackground from './StarBackground';
 import SkyBackground from './SkyBackground';

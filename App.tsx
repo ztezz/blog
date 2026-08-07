@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from './utils/router';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import BlogList from './pages/BlogList';

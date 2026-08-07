@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Target, Users, Sparkles } from 'lucide-react';
 import { getSettings } from '../utils/storage';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { DEFAULT_ABOUT_CONTENT } from '../constants';
 
 const About: React.FC = () => {
@@ -48,7 +49,7 @@ const About: React.FC = () => {
                         [&_.text-space-neon]:!text-sky-600 dark:[&_.text-space-neon]:!text-cyan-400
                         [&_.text-space-purple]:!text-purple-600 dark:[&_.text-space-purple]:!text-purple-400
                         "
-            dangerouslySetInnerHTML={{ __html: content }} 
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
             />
         </div>
 

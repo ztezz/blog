@@ -1,8 +1,9 @@
 
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link } from '../utils/router';
 import { ArrowLeft, User, Calendar, Share2, Tag } from 'lucide-react';
 import { getPostById } from '../utils/storage';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { BlogPost } from '../types';
 
 const PostDetail: React.FC = () => {
@@ -96,7 +97,7 @@ const PostDetail: React.FC = () => {
             [&_p]:!text-slate-700 dark:[&_p]:!text-gray-100
             [&_li]:!text-slate-700 dark:[&_li]:!text-gray-100
           "
-          dangerouslySetInnerHTML={{ __html: post.content }} 
+          dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content) }}
         />
 
         {/* Tags */}

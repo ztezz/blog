@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../utils/router';
 import { ArrowLeft, Trash2, Mail, Calendar, User } from 'lucide-react';
 import { getMessages, deleteMessage, isAuthenticated } from '../utils/storage';
 import { ContactMessage } from '../types';

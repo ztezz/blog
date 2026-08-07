@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Mail, MapPin, Phone, Send } from 'lucide-react';
 import { sendMessage, getSettings } from '../utils/storage';
+import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { DEFAULT_CONTACT_CONTENT } from '../constants';
 
 const Contact: React.FC = () => {
@@ -74,7 +75,7 @@ const Contact: React.FC = () => {
                         /* Keep accent colors */
                         [&_.text-space-neon]:!text-sky-600 dark:[&_.text-space-neon]:!text-cyan-400
                         [&_.text-space-purple]:!text-purple-600 dark:[&_.text-space-purple]:!text-purple-400"
-              dangerouslySetInnerHTML={{ __html: contactContent }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(contactContent) }}
             >
             </div>
 

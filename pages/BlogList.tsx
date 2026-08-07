@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from '../utils/router';
 import { Search, Filter, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CATEGORIES } from '../constants';
 import { getPosts } from '../utils/storage';

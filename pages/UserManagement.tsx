@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../utils/router';
 import { ArrowLeft, Plus, Trash2, Edit, Save, X, User as UserIcon, Shield } from 'lucide-react';
 import { getUsers, saveUser, deleteUser, isAuthenticated, getCurrentUser } from '../utils/storage';
 import { User } from '../types';

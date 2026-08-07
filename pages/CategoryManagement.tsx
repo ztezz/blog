@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../utils/router';
 import { ArrowLeft, Plus, Trash2, Edit, Save, X, List, Layers } from 'lucide-react';
 import { getCategories, saveCategory, deleteCategory, isAuthenticated } from '../utils/storage';
 import { Category } from '../types';

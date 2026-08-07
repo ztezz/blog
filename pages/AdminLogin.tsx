@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../utils/router';
 import { ShieldCheck, User, Lock, Zap } from 'lucide-react';
 import { login } from '../utils/storage';
 

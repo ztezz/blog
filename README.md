@@ -12,7 +12,7 @@ CosmoGIS là một nền tảng WebGIS hiện đại kết hợp giữa công ng
 
 ## 🛠️ Công nghệ sử dụng
 
-- **Frontend:** React 18, Vite, React Router DOM.
+- **Frontend:** React 19, Vite, Wouter.
 - **3D/Graphics:** Three.js, @react-three/fiber, @react-three/drei.
 - **Backend:** Node.js, Express.
 - **Database:** SQLite (`better-sqlite3`).
@@ -29,7 +29,7 @@ CosmoGIS là một nền tảng WebGIS hiện đại kết hợp giữa công ng
 ## 🏁 Hướng dẫn cài đặt và chạy thử
 
 ### Tiền đề
-- **Node.js 22 trở lên**
+- **Node.js 22 LTS** (tối thiểu 22.12; xem `.nvmrc`)
 - Trình biên dịch C/C++ có thể cần thiết nếu hệ điều hành hoặc phiên bản Node.js không có binary dựng sẵn cho `better-sqlite3`.
 
 ### Các bước thực hiện
@@ -53,6 +53,11 @@ CosmoGIS là một nền tảng WebGIS hiện đại kết hợp giữa công ng
 5. **Chạy backend riêng:**
    ```bash
    npm run dev:backend
+   ```
+
+6. **Kiểm tra type và production build:**
+   ```bash
+   npm run check
    ```
 
 ## Triển khai frontend trên Cloudflare Pages

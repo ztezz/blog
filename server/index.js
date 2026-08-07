@@ -3,7 +3,6 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
@@ -83,7 +82,7 @@ app.use(cors({
     return callback(error);
   }
 }));
-app.use(bodyParser.json({ limit: '1mb' }));
+app.use(express.json({ limit: '1mb' }));
 
 app.use((err, req, res, next) => {
   if (err.status === 403) {
@@ -228,7 +227,7 @@ const initDb = async () => {
 // --- FILE UPLOAD CONFIGURATION ---
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
+  fs.mkdirSync(uploadDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
@@ -617,7 +616,7 @@ app.delete('/api/messages/:id', authenticate, authorize('admin'), async (req, re
 
 // --- QUAN TRỌNG: API 404 Handler ---
 // Đây là nguyên nhân trả về lỗi 404 nếu route ở trên chưa được đăng ký
-app.all('/api/*', (req, res) => {
+app.all('/api/{*splat}', (req, res) => {
   res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.url}` });
 });
 

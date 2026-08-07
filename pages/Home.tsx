@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from '../utils/router';
 import { ArrowRight, Globe, Satellite, Orbit } from 'lucide-react';
 import { getPosts } from '../utils/storage';
 import { BlogPost } from '../types';

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from '../utils/router';
 import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database } from 'lucide-react';
 import { API_URL, getPosts, deletePost, getCurrentUser, logout, isAuthenticated } from '../utils/storage';
 import { BlogPost } from '../types';

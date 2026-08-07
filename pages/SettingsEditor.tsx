@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../utils/router';
 import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, ExternalLink, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft } from 'lucide-react';
 import { getSettings, saveSettings, isAuthenticated, uploadImage } from '../utils/storage';
 import { SiteSettings, NavItem } from '../types';
