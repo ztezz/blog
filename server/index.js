@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer'); // Import multer
 const db = require('./db');
+const { schemas, validateBody } = require('./validation');
 
 const app = express();
 const port = Number(process.env.PORT || 5001);
@@ -24,6 +25,12 @@ const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'productio
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '8h';
 const isPasswordHash = (password) => /^\$2[aby]\$\d{2}\$/.test(password || '');
 
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error('PORT must be an integer between 1 and 65535');
+}
+if (!Number.isInteger(passwordRounds) || passwordRounds < 10 || passwordRounds > 15) {
+  throw new Error('BCRYPT_ROUNDS must be an integer between 10 and 15');
+}
 if (!jwtSecret) {
   throw new Error('JWT_SECRET is required when NODE_ENV=production');
 }
@@ -55,6 +62,14 @@ const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts. Please try again later.' }
 });
 
+const messageLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many messages. Please try again later.' }
+});
+
 const hashPlaintextPasswords = async () => {
   const result = await db.query('SELECT id, password FROM users');
   const plaintextUsers = result.rows.filter(user => !isPasswordHash(user.password));
@@ -71,7 +86,17 @@ const hashPlaintextPasswords = async () => {
 
 // Middleware
 app.disable('x-powered-by');
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      baseUri: ["'none'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'none'"]
+    }
+  }
+}));
 app.use(cors({
   origin(origin, callback) {
     if (!origin || frontendOrigins.includes(origin)) {
@@ -338,7 +363,7 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-app.post('/api/settings', authenticate, authorize('admin'), async (req, res) => {
+app.post('/api/settings', authenticate, authorize('admin'), validateBody(schemas.settings), async (req, res) => {
   const s = req.body;
   try {
     await db.query(
@@ -387,7 +412,7 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
-app.post('/api/categories', authenticate, authorize('admin'), async (req, res) => {
+app.post('/api/categories', authenticate, authorize('admin'), validateBody(schemas.category), async (req, res) => {
   const c = req.body;
   try {
     // Check exist
@@ -464,7 +489,7 @@ app.get('/api/posts/:id', async (req, res) => {
   }
 });
 
-app.post('/api/posts', authenticate, authorize('admin', 'editor'), async (req, res) => {
+app.post('/api/posts', authenticate, authorize('admin', 'editor'), validateBody(schemas.post), async (req, res) => {
   const p = req.body;
   try {
     const check = await db.query('SELECT id FROM posts WHERE id = $1', [p.id]);
@@ -497,7 +522,7 @@ app.delete('/api/posts/:id', authenticate, authorize('admin', 'editor'), async (
 });
 
 // 4. Users
-app.post('/api/login', loginLimiter, async (req, res) => {
+app.post('/api/login', loginLimiter, validateBody(schemas.login), async (req, res) => {
   const { username, password } = req.body;
   try {
     const result = await db.query('SELECT * FROM users WHERE username = $1', [username]);
@@ -534,7 +559,7 @@ app.get('/api/users', authenticate, authorize('admin'), async (req, res) => {
   }
 });
 
-app.post('/api/users', authenticate, authorize('admin'), async (req, res) => {
+app.post('/api/users', authenticate, authorize('admin'), validateBody(schemas.user), async (req, res) => {
   const u = req.body;
   try {
     const check = await db.query('SELECT id FROM users WHERE id = $1', [u.id]);
@@ -579,7 +604,7 @@ app.delete('/api/users/:id', authenticate, authorize('admin'), async (req, res) 
 });
 
 // 5. Messages (Hộp thư)
-app.post('/api/messages', async (req, res) => {
+app.post('/api/messages', messageLimiter, validateBody(schemas.message), async (req, res) => {
   const m = req.body;
   console.log('[API] Receiving message from:', m.email); // Debug log
   try {

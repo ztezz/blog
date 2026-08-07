@@ -71,7 +71,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       if (!link) {
         link = document.createElement('link');
         link.rel = 'icon';
-        document.getElementsByTagName('head')[0].appendChild(link);
+        document.head.appendChild(link);
       }
       link.href = settings.faviconUrl;
     }

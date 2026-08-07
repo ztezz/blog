@@ -132,8 +132,11 @@ const SettingsEditor: React.FC = () => {
     if (parentId === null) {
       const newNav = [...settings.navigation];
       const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex >= 0 && targetIndex < newNav.length) {
-        [newNav[index], newNav[targetIndex]] = [newNav[targetIndex], newNav[index]];
+      const currentItem = newNav[index];
+      const targetItem = newNav[targetIndex];
+      if (currentItem && targetItem) {
+        newNav[index] = targetItem;
+        newNav[targetIndex] = currentItem;
         setSettings({ ...settings, navigation: newNav });
       }
     } else {
@@ -141,8 +144,11 @@ const SettingsEditor: React.FC = () => {
         if (parent.id === parentId && parent.children) {
           const newChildren = [...parent.children];
           const targetIndex = direction === 'up' ? index - 1 : index + 1;
-           if (targetIndex >= 0 && targetIndex < newChildren.length) {
-            [newChildren[index], newChildren[targetIndex]] = [newChildren[targetIndex], newChildren[index]];
+          const currentItem = newChildren[index];
+          const targetItem = newChildren[targetIndex];
+          if (currentItem && targetItem) {
+            newChildren[index] = targetItem;
+            newChildren[targetIndex] = currentItem;
           }
           return { ...parent, children: newChildren };
         }
@@ -199,15 +205,18 @@ const SettingsEditor: React.FC = () => {
        if (draggedItem.index === targetIndex) return;
        const newNav = [...settings.navigation];
        const [movedItem] = newNav.splice(draggedItem.index, 1);
+       if (!movedItem) return;
        newNav.splice(targetIndex, 0, movedItem);
        setSettings({ ...settings, navigation: newNav });
     } 
     else if (draggedItem.type === 'child' && targetType === 'child') {
        const newNav = [...settings.navigation];
-       const sourceParent = newNav[draggedItem.parentIndex!];
-       if (!sourceParent.children) return;
+       if (draggedItem.parentIndex === undefined || targetParentIndex === undefined) return;
+       const sourceParent = newNav[draggedItem.parentIndex];
+       const destParent = newNav[targetParentIndex];
+       if (!sourceParent?.children || !destParent) return;
        const [movedItem] = sourceParent.children.splice(draggedItem.index, 1);
-       const destParent = newNav[targetParentIndex!];
+       if (!movedItem) return;
        if (!destParent.children) destParent.children = [];
        destParent.children.splice(targetIndex, 0, movedItem);
        setSettings({ ...settings, navigation: newNav });

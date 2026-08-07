@@ -31,7 +31,7 @@ const PostEditor: React.FC = () => {
     excerpt: '',
     content: '',
     author: 'Admin',
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().slice(0, 10),
     category: '',
     tags: [],
     imageUrl: 'https://picsum.photos/800/400',
@@ -51,8 +51,9 @@ const PostEditor: React.FC = () => {
 
     getCategories().then(cats => {
         setCategories(cats);
-        if (!id && cats.length > 0) {
-            setFormData(prev => ({...prev, category: cats[0].id}));
+        const firstCategory = cats[0];
+        if (!id && firstCategory) {
+            setFormData(prev => ({...prev, category: firstCategory.id}));
         }
     });
 
@@ -317,7 +318,7 @@ const PostEditor: React.FC = () => {
     setLoading(true);
     const postToSave = {
         ...formData,
-        category: formData.category || (categories.length > 0 ? categories[0].id : 'gis-basic')
+        category: formData.category || categories[0]?.id || 'gis-basic'
     }
     await savePost(postToSave);
     setLoading(false);

@@ -91,7 +91,7 @@ const StarBackground: React.FC<StarBackgroundProps> = ({
           angle: Math.random() * Math.PI * 2,
           speed: (0.002 - (i * 0.0003)) * (Math.random() > 0.5 ? 1 : -1), 
           size: Math.random() * 3 + 3, // Planet to hơn chút
-          color: planetColors[i % planetColors.length]
+          color: planetColors[i % planetColors.length] ?? '#38bdf8'
         });
       }
     };
@@ -153,8 +153,7 @@ const StarBackground: React.FC<StarBackgroundProps> = ({
       // --- 2. Draw Stars ---
       ctx.fillStyle = '#ffffff';
       
-      for (let i = 0; i < stars.length; i++) {
-        const star = stars[i];
+      for (const [i, star] of stars.entries()) {
 
         star.x += star.vx;
         star.y += star.vy;
@@ -180,8 +179,11 @@ const StarBackground: React.FC<StarBackgroundProps> = ({
       ctx.lineWidth = 0.8;
       for (let i = 0; i < stars.length; i++) {
         for (let j = i + 1; j < stars.length; j++) {
-          const dx = stars[i].x - stars[j].x;
-          const dy = stars[i].y - stars[j].y;
+          const first = stars[i];
+          const second = stars[j];
+          if (!first || !second) continue;
+          const dx = first.x - second.x;
+          const dy = first.y - second.y;
           
           if (Math.abs(dx) > connectionDistance || Math.abs(dy) > connectionDistance) continue;
           
@@ -190,8 +192,8 @@ const StarBackground: React.FC<StarBackgroundProps> = ({
           if (dist < connectionDistance) {
             const alpha = (1 - dist / connectionDistance) * connectionOpacity;
             ctx.beginPath();
-            ctx.moveTo(stars[i].x, stars[i].y);
-            ctx.lineTo(stars[j].x, stars[j].y);
+            ctx.moveTo(first.x, first.y);
+            ctx.lineTo(second.x, second.y);
             ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`; // Blue connection
             ctx.stroke();
           }
