@@ -14,6 +14,7 @@ const SettingsEditor: React.FC = () => {
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [activeTab, setActiveTab] = useState<'general' | 'menu' | 'pages' | 'automation'>('general');
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings | null>(null);
+  const [automationError, setAutomationError] = useState('');
   
   // State for Navigation Builder
   const [editingItem, setEditingItem] = useState<{parentId: string | null, item: NavItem} | null>(null);
@@ -228,16 +229,19 @@ const SettingsEditor: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setAutomationError('');
     try {
       if (activeTab === 'automation' && automationSettings) {
-        await saveAutomationSettings(automationSettings);
-        setAutomationSettings({ ...automationSettings, apiKey: '', clearApiKey: false, hasApiKey: automationSettings.clearApiKey ? false : automationSettings.hasApiKey || Boolean(automationSettings.apiKey) });
+        const saved = await saveAutomationSettings(automationSettings);
+        setAutomationSettings(saved);
       } else if (settings) {
       await saveSettings(settings);
       }
       alert('Đã lưu cài đặt thành công!');
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Không thể lưu cài đặt');
+      const message = error instanceof Error ? error.message : 'Không thể lưu cài đặt';
+      if (activeTab === 'automation') setAutomationError(message);
+      else alert(message);
     } finally {
       setLoading(false);
     }
@@ -485,6 +489,11 @@ const SettingsEditor: React.FC = () => {
                   <Sparkles className="mr-2" size={20} /> Tạo bài tự động bằng 9Router
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-gray-400 mb-6">Cấu hình được lưu trong SQLite. Để trống API key để giữ key đang lưu.</p>
+                {automationError && (
+                  <div className="mb-6 whitespace-pre-wrap rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300" role="alert">
+                    {automationError}
+                  </div>
+                )}
                 <label className="flex items-center gap-3 mb-6 text-slate-700 dark:text-gray-200">
                   <input type="checkbox" checked={automationSettings.enabled} onChange={event => setAutomationSettings({ ...automationSettings, enabled: event.target.checked })} />
                   Bật lịch tạo và đăng một bài mỗi ngày

@@ -419,7 +419,8 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
       [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl]
     );
     await automation.reschedule();
-    return res.json({ success: true });
+    const saved = await ensureAutomationSettings(db);
+    return res.json(serializeAutomationSettings(saved));
   } catch (error) {
     return next(error);
   }

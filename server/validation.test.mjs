@@ -69,4 +69,27 @@ describe('API request schemas', () => {
     expect(schemas.automationSettings.safeParse({ ...result, rssFeeds: [], websites: [] }).success).toBe(true);
     expect(schemas.automationSettings.safeParse({ ...result, enabled: false, model: '', rssFeeds: [], websites: [] }).success).toBe(true);
   });
+
+  it('normalizes common URL and domain input formats', () => {
+    const result = schemas.automationSettings.parse({
+      enabled: true,
+      baseUrl: 'localhost:20128/v1',
+      apiKey: '',
+      model: 'writer',
+      rssFeeds: ['example.com/feed.xml'],
+      websites: [],
+      discoveryEnabled: true,
+      discoveryModel: 'search',
+      discoveryTopics: [],
+      allowedDomains: ['https://science.nasa.gov/news', '*.esa.int'],
+      blockedDomains: ['spam.example/path'],
+      runHourUtc: 1,
+      author: 'CosmoGIS AI',
+      defaultImageUrl: 'https://example.com/image.jpg'
+    });
+    expect(result.baseUrl).toBe('http://localhost:20128/v1');
+    expect(result.rssFeeds).toEqual(['https://example.com/feed.xml']);
+    expect(result.allowedDomains).toEqual(['science.nasa.gov', 'esa.int']);
+    expect(result.blockedDomains).toEqual(['spam.example']);
+  });
 });

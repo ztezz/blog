@@ -56,13 +56,16 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     throw new Error(`API returned invalid format: ${res.status} ${res.statusText}`);
   }
 
-  const data = await res.json();
+  const data = await res.json() as { error?: string; issues?: Array<{ path?: string; message?: string }> };
   
   if (!res.ok) {
-    throw new Error(data.error || `API Error: ${res.statusText}`);
+    const issueDetails = data.issues
+      ?.map(issue => `${issue.path || 'request'}: ${issue.message || 'Invalid value'}`)
+      .join('\n');
+    throw new Error([data.error || `API Error: ${res.statusText}`, issueDetails].filter(Boolean).join('\n'));
   }
   
-  return data;
+  return data as T;
 }
 
 // --- Upload Helper ---
@@ -213,8 +216,8 @@ export const getAutomationSettings = async (): Promise<AutomationSettings> => {
   return fetchApi<AutomationSettings>('/automation/settings');
 };
 
-export const saveAutomationSettings = async (settings: AutomationSettings): Promise<void> => {
-  await fetchApi('/automation/settings', {
+export const saveAutomationSettings = async (settings: AutomationSettings): Promise<AutomationSettings> => {
+  return fetchApi<AutomationSettings>('/automation/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(settings)

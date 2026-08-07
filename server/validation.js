@@ -10,8 +10,23 @@ const safeHref = z.string().trim().max(2048).refine(
   value => value === '#' || value.startsWith('/') || /^https?:\/\//i.test(value) || !/^[a-z][a-z\d+.-]*:/i.test(value),
   'Unsupported URL protocol'
 );
-const httpUrl = z.url().refine(value => /^https?:\/\//i.test(value), 'Only HTTP(S) URLs are allowed');
-const domain = z.string().trim().toLowerCase().min(1).max(253).regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/);
+const normalizeHttpUrl = value => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed || /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)) return trimmed;
+  return `${/^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i.test(trimmed) ? 'http' : 'https'}://${trimmed}`;
+};
+const httpUrl = z.preprocess(normalizeHttpUrl, z.url().refine(value => /^https?:\/\//i.test(value), 'Only HTTP(S) URLs are allowed'));
+const normalizeDomain = value => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim().toLowerCase().replace(/^\*\./, '').replace(/^\./, '');
+  try {
+    return new URL(normalizeHttpUrl(trimmed)).hostname.toLowerCase();
+  } catch {
+    return trimmed.split('/')[0].split(':')[0];
+  }
+};
+const domain = z.preprocess(normalizeDomain, z.string().min(1).max(253).regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/));
 
 const navItem = z.lazy(() => z.object({
   id,
