@@ -83,7 +83,7 @@ const AdminDashboard: React.FC = () => {
           const diagnostics = data.diagnostics;
           const lines = [
             'Không tạo được bài mới.',
-            `Search tìm thấy: ${diagnostics.discoveryFound || 0}`,
+            `DuckDuckGo tìm thấy: ${diagnostics.discoveryFound || 0}`,
             `Bị lọc bởi domain: ${diagnostics.discoveryRejected || 0}`,
             `Bài từ RSS: ${diagnostics.rssItems || 0}`,
             `Link từ website: ${diagnostics.websiteLinks || 0}`,

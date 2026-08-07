@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import automation from './automation.js';
 
-const { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, parseFeed, readingTime } = automation;
+const { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, parseDuckDuckGoResults, parseFeed, readingTime } = automation;
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -44,6 +44,15 @@ describe('content automation helpers', () => {
     expect(isAllowedDiscoveryUrl('https://spam.nasa.gov/mars', ['nasa.gov'], ['spam.nasa.gov'])).toBe(false);
   });
 
+  it('parses and unwraps DuckDuckGo HTML results', () => {
+    const html = '<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fscience.nasa.gov%2Fmars%2Fnews">Mars News</a><div class="result__extras">2026-08-07T00:00:00</div><a class="result__snippet">Latest Mars mapping data</a></div>';
+    expect(parseDuckDuckGoResults(html)[0]).toMatchObject({
+      url: 'https://science.nasa.gov/mars/news',
+      title: 'Mars News',
+      publishedAt: '2026-08-07T00:00:00'
+    });
+  });
+
   it('calculates a non-zero reading time', () => {
     expect(readingTime('<p>short article</p>')).toBe('1 phút');
   });
@@ -62,7 +71,8 @@ describe('content automation helpers', () => {
             rss_feeds: '[]',
             website_urls: '[]',
             discovery_enabled: 1,
-            discovery_model: 'search-model',
+            discovery_provider: 'duckduckgo',
+            discovery_model: '',
             discovery_topics: '["Mars GIS"]',
             allowed_domains: '["93.184.216.34"]',
             blocked_domains: '[]',
@@ -79,11 +89,12 @@ describe('content automation helpers', () => {
       })
     };
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (String(url).includes('html.duckduckgo.com/html/')) {
+        return new Response('<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2F93.184.216.34%2Farticle">Mars source</a><div class="result__extras">2026-08-07</div><a class="result__snippet">Summary</a></div>', { status: 200 });
+      }
       if (String(url).endsWith('/chat/completions')) {
         const request = JSON.parse(options.body || '{}');
-        if (request.model === 'search-model') {
-          return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ results: [{ url: 'https://93.184.216.34/article', title: 'Mars source', publishedAt: '2026-08-07', summary: 'Summary' }] }) } }] }), { status: 200 });
-        }
+        expect(request.model).toBe('database-model');
         return new Response(JSON.stringify({
           choices: [{ message: { content: JSON.stringify({
             title: 'Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới',
@@ -130,7 +141,8 @@ describe('content automation helpers', () => {
             rss_feeds: '[]',
             website_urls: '[]',
             discovery_enabled: 1,
-            discovery_model: 'search',
+            discovery_provider: 'duckduckgo',
+            discovery_model: '',
             discovery_topics: '["GIS"]',
             allowed_domains: '[]',
             blocked_domains: '[]',
@@ -144,9 +156,7 @@ describe('content automation helpers', () => {
         return { rows: [], rowCount: 1 };
       })
     };
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-      choices: [{ message: { content: '{"results":[]}' } }]
-    }), { status: 200 })));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<html><body>No results</body></html>', { status: 200 })));
 
     const result = await createAutomation({ db }).run();
     expect(result).toMatchObject({

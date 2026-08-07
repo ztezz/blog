@@ -54,6 +54,7 @@ export interface AutomationSettings {
   rssFeeds: string[];
   websites: string[];
   discoveryEnabled: boolean;
+  discoveryProvider: 'duckduckgo' | '9router';
   discoveryModel: string;
   discoveryTopics: string[];
   allowedDomains: string[];

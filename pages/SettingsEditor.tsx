@@ -525,38 +525,35 @@ const SettingsEditor: React.FC = () => {
                     <input type="url" value={automationSettings.defaultImageUrl} onChange={event => setAutomationSettings({ ...automationSettings, defaultImageUrl: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
                   </div>
                   <div>
-                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">RSS/Atom, mỗi dòng một URL</label>
-                    <textarea rows={8} value={automationSettings.rssFeeds.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, rssFeeds: event.target.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">RSS/Atom, phân cách bằng xuống dòng hoặc dấu phẩy</label>
+                    <textarea rows={8} value={automationSettings.rssFeeds.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, rssFeeds: event.target.value.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
                   </div>
                   <div>
-                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Website, mỗi dòng một URL</label>
-                    <textarea rows={8} value={automationSettings.websites.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, websites: event.target.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Website, phân cách bằng xuống dòng hoặc dấu phẩy</label>
+                    <textarea rows={8} value={automationSettings.websites.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, websites: event.target.value.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
                   </div>
                   <div className="md:col-span-2 border-t border-slate-200 dark:border-white/10 pt-6">
                     <label className="flex items-center gap-3 text-slate-700 dark:text-gray-200">
                       <input type="checkbox" checked={automationSettings.discoveryEnabled} onChange={event => setAutomationSettings({ ...automationSettings, discoveryEnabled: event.target.checked })} />
-                      Tự tìm nguồn mới theo chủ đề website bằng model có Web Search
+                      Tự tìm nguồn mới theo chủ đề bằng DuckDuckGo
                     </label>
                     <p className="text-xs text-slate-500 dark:text-gray-500 mt-2">Hệ thống luôn kết hợp tên website và các danh mục hiện có. Các chủ đề bên dưới là phần bổ sung.</p>
                   </div>
                   {automationSettings.discoveryEnabled && (
                     <>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Model/Combo Web Search của 9Router</label>
-                        <input type="text" value={automationSettings.discoveryModel} onChange={event => setAutomationSettings({ ...automationSettings, discoveryModel: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder="Ví dụ combo dùng Perplexity, Tavily hoặc provider có web search" required />
-                      </div>
+                      <div className="md:col-span-2 rounded-lg bg-sky-50 p-4 text-sm text-sky-800 dark:bg-cyan-400/10 dark:text-cyan-300">DuckDuckGo chỉ tìm URL. Model 9Router ở phía trên vẫn đảm nhiệm đọc dữ kiện, biên tập lại bài tiếng Việt, chọn danh mục và tạo tags.</div>
                       <div>
                         <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Chủ đề bổ sung, mỗi dòng một chủ đề</label>
                         <textarea rows={7} value={automationSettings.discoveryTopics.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, discoveryTopics: event.target.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder={'WebGIS mới nhất\nViễn thám và vệ tinh\nBản đồ Sao Hỏa'} />
                       </div>
                       <div>
                         <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Domain cho phép, mỗi dòng một domain</label>
-                        <textarea rows={7} value={automationSettings.allowedDomains.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, allowedDomains: event.target.value.split(/\r?\n/).map(value => value.trim().toLowerCase()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'nasa.gov\nesa.int\nsciencedaily.com'} />
+                        <textarea rows={7} value={automationSettings.allowedDomains.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, allowedDomains: event.target.value.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'nasa.gov\nesa.int\nsciencedaily.com'} />
                         <p className="text-xs text-slate-500 mt-1">Để trống để cho phép mọi public domain.</p>
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Domain chặn, mỗi dòng một domain</label>
-                        <textarea rows={4} value={automationSettings.blockedDomains.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, blockedDomains: event.target.value.split(/\r?\n/).map(value => value.trim().toLowerCase()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'spam.example\nlow-quality.example'} />
+                        <textarea rows={4} value={automationSettings.blockedDomains.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, blockedDomains: event.target.value.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'spam.example\nlow-quality.example'} />
                       </div>
                     </>
                   )}

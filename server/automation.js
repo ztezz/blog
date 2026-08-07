@@ -16,15 +16,6 @@ const generatedPostSchema = z.object({
   category: z.string().trim().min(1).max(50),
   tags: z.array(z.string().trim().min(1).max(50)).min(1).max(10)
 });
-const searchResultsSchema = z.object({
-  results: z.array(z.object({
-    url: z.url(),
-    title: z.string().max(500).optional().default(''),
-    publishedAt: z.string().max(100).optional().default(''),
-    summary: z.string().max(2000).optional().default('')
-  })).max(20)
-});
-
 const asArray = value => value === undefined ? [] : Array.isArray(value) ? value : [value];
 const textValue = value => typeof value === 'string' ? value : value?.['#text'] || '';
 
@@ -160,6 +151,37 @@ const isAllowedDiscoveryUrl = (value, allowedDomains, blockedDomains) => {
   }
 };
 
+const parseDuckDuckGoResults = html => {
+  const $ = cheerio.load(html);
+  const results = [];
+  $('.result').each((_, element) => {
+    const anchor = $(element).find('.result__a').first();
+    const href = anchor.attr('href');
+    if (!href) return;
+    try {
+      const redirectUrl = new URL(href, 'https://html.duckduckgo.com');
+      const target = redirectUrl.hostname.endsWith('duckduckgo.com')
+        ? redirectUrl.searchParams.get('uddg')
+        : redirectUrl.href;
+      if (!target) return;
+      const url = new URL(target);
+      if (!['http:', 'https:'].includes(url.protocol)) return;
+      url.hash = '';
+      const extras = $(element).find('.result__extras').text();
+      const publishedAt = extras.match(/\d{4}-\d{2}-\d{2}(?:T[^\s]+)?/)?.[0] || '';
+      results.push({
+        url: url.href,
+        title: anchor.text().replace(/\s+/g, ' ').trim(),
+        publishedAt,
+        summary: $(element).find('.result__snippet').text().replace(/\s+/g, ' ').trim()
+      });
+    } catch {
+      // Ignore malformed redirect targets in search markup.
+    }
+  });
+  return results.slice(0, 10);
+};
+
 const createAutomation = ({ db, env = process.env }) => {
   let running = false;
   let timer = null;
@@ -172,7 +194,6 @@ const createAutomation = ({ db, env = process.env }) => {
     rssFeeds: parseCsvUrls(env.AI_RSS_FEEDS),
     websites: parseCsvUrls(env.AI_WEBSITE_URLS),
     discoveryEnabled: false,
-    discoveryModel: '',
     discoveryTopics: [],
     allowedDomains: [],
     blockedDomains: [],
@@ -194,13 +215,12 @@ const createAutomation = ({ db, env = process.env }) => {
       baseUrl: String(row.base_url).replace(/\/$/, ''),
       apiKey: row.api_key || '',
       model: row.model || '',
-      rssFeeds: parseJsonArray(row.rss_feeds),
-      websites: parseJsonArray(row.website_urls),
+      rssFeeds: parseJsonArray(row.rss_feeds, true),
+      websites: parseJsonArray(row.website_urls, true),
       discoveryEnabled: Boolean(row.discovery_enabled),
-      discoveryModel: row.discovery_model || '',
       discoveryTopics: parseJsonArray(row.discovery_topics),
-      allowedDomains: parseJsonArray(row.allowed_domains),
-      blockedDomains: parseJsonArray(row.blocked_domains),
+      allowedDomains: parseJsonArray(row.allowed_domains, true),
+      blockedDomains: parseJsonArray(row.blocked_domains, true),
       runHourUtc: Number(row.run_hour_utc),
       author: row.author || 'CosmoGIS AI',
       defaultImageUrl: row.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400'
@@ -210,7 +230,6 @@ const createAutomation = ({ db, env = process.env }) => {
   const validateConfig = config => {
     if (!config.model) throw new Error('AI_MODEL is required');
     if (config.rssFeeds.length + config.websites.length === 0 && !config.discoveryEnabled) throw new Error('At least one source or topic discovery is required');
-    if (config.discoveryEnabled && !config.discoveryModel) throw new Error('A search model is required for topic discovery');
     if (!Number.isInteger(config.runHourUtc) || config.runHourUtc < 0 || config.runHourUtc > 23) throw new Error('AI_RUN_HOUR_UTC must be an integer from 0 to 23');
   };
 
@@ -219,41 +238,23 @@ const createAutomation = ({ db, env = process.env }) => {
     const categoryResult = await db.query('SELECT name FROM categories ORDER BY name');
     const siteName = settingsResult.rows[0] ? `${settingsResult.rows[0].site_name_prefix || ''}${settingsResult.rows[0].site_name_suffix || ''}` : 'CosmoGIS';
     const automaticTopics = categoryResult.rows.map(category => `${siteName} ${category.name}`);
-    const topics = [...new Set([...config.discoveryTopics, ...automaticTopics])].slice(0, 20);
-    const request = {
-      model: config.discoveryModel,
-      temperature: 0,
-      messages: [
-        {
-          role: 'system',
-          content: 'Bạn là công cụ tìm kiếm tin tức. Dùng khả năng web search của provider để tìm bài nguồn mới, uy tín và liên quan. Chỉ trả JSON {"results":[{"url":"https://...","title":"...","publishedAt":"...","summary":"..."}]}. Không bịa URL, không trả markdown.'
-        },
-        {
-          role: 'user',
-          content: `Ngày hiện tại: ${new Date().toISOString().slice(0, 10)}. Tìm tối đa 15 bài mới trong 7 ngày gần đây cho các chủ đề: ${JSON.stringify(topics)}. Ưu tiên nguồn khoa học, cơ quan vũ trụ, trường đại học và báo công nghệ uy tín.`
+    const topics = [...new Set([...config.discoveryTopics, ...automaticTopics])].slice(0, 3);
+    const discovered = [];
+    for (const topic of topics) {
+      const query = `${topic} latest news ${new Date().getUTCFullYear()}`;
+      const html = await fetchSource(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&df=w`);
+      const results = parseDuckDuckGoResults(html);
+      diagnostics.discoveryFound += results.length;
+      for (const result of results) {
+        if (!isAllowedDiscoveryUrl(result.url, config.allowedDomains, config.blockedDomains)) {
+          diagnostics.discoveryRejected += 1;
+        } else if (!discovered.some(existing => existing.url === result.url)) {
+          discovered.push(result);
         }
-      ]
-    };
-    const send = body => fetch(`${config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(120000),
-      headers: {
-        'Content-Type': 'application/json',
-        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
-      },
-      body: JSON.stringify(body)
-    });
-    let response = await send({ ...request, response_format: { type: 'json_object' } });
-    if (response.status === 400) response = await send(request);
-    if (!response.ok) throw new Error(`Search model returned HTTP ${response.status}`);
-    const payload = await response.json();
-    const content = payload?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string') throw new Error('Search model returned an invalid response');
-    const parsed = searchResultsSchema.parse(JSON.parse(cleanJsonText(content)));
-    diagnostics.discoveryFound += parsed.results.length;
-    const accepted = parsed.results.filter(result => isAllowedDiscoveryUrl(result.url, config.allowedDomains, config.blockedDomains));
-    diagnostics.discoveryRejected += parsed.results.length - accepted.length;
-    return accepted;
+        if (discovered.length >= 15) return discovered;
+      }
+    }
+    return discovered;
   };
 
   const collectCandidates = async (config, diagnostics) => {
@@ -262,8 +263,8 @@ const createAutomation = ({ db, env = process.env }) => {
       try {
         candidates.push(...await discoverCandidates(config, diagnostics));
       } catch (error) {
-        diagnostics.errors.push(`Discovery: ${error.message}`);
-        console.error('[Automation] Topic discovery failed:', error.message);
+        diagnostics.errors.push(`DuckDuckGo: ${error.message}`);
+        console.error('[Automation] DuckDuckGo discovery failed:', error.message);
       }
     }
     for (const feedUrl of config.rssFeeds) {
@@ -449,4 +450,4 @@ const createAutomation = ({ db, env = process.env }) => {
   };
 };
 
-module.exports = { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, parseFeed, readingTime };
+module.exports = { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, parseDuckDuckGoResults, parseFeed, readingTime };

@@ -281,6 +281,7 @@ const initDb = async () => {
         rss_feeds TEXT NOT NULL DEFAULT '[]',
         website_urls TEXT NOT NULL DEFAULT '[]',
         discovery_enabled INTEGER NOT NULL DEFAULT 0,
+        discovery_provider TEXT NOT NULL DEFAULT 'duckduckgo',
         discovery_model TEXT NOT NULL DEFAULT '',
         discovery_topics TEXT NOT NULL DEFAULT '[]',
         allowed_domains TEXT NOT NULL DEFAULT '[]',
@@ -300,6 +301,7 @@ const initDb = async () => {
       ['rss_feeds', "TEXT NOT NULL DEFAULT '[]'"],
       ['website_urls', "TEXT NOT NULL DEFAULT '[]'"],
       ['discovery_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+      ['discovery_provider', "TEXT NOT NULL DEFAULT 'duckduckgo'"],
       ['discovery_model', "TEXT NOT NULL DEFAULT ''"],
       ['discovery_topics', "TEXT NOT NULL DEFAULT '[]'"],
       ['allowed_domains', "TEXT NOT NULL DEFAULT '[]'"],
@@ -423,11 +425,11 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
        enabled=$1, base_url=$2,
        api_key=CASE WHEN $3=1 THEN '' WHEN $4!='' THEN $4 ELSE api_key END,
        model=$5, rss_feeds=$6, website_urls=$7,
-       discovery_enabled=$8, discovery_model=$9, discovery_topics=$10,
-       allowed_domains=$11, blocked_domains=$12, run_hour_utc=$13,
-       author=$14, default_image_url=$15, updated_at=CURRENT_TIMESTAMP
+       discovery_enabled=$8, discovery_provider=$9, discovery_model=$10, discovery_topics=$11,
+       allowed_domains=$12, blocked_domains=$13, run_hour_utc=$14,
+       author=$15, default_image_url=$16, updated_at=CURRENT_TIMESTAMP
        WHERE id=1`,
-      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl]
+      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl]
     );
     await automation.reschedule();
     const saved = await ensureAutomationSettings(db);

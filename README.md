@@ -109,8 +109,8 @@ AI_WEBSITE_URLS=https://example.com/news
 ```
 
 - Chỉ thêm nguồn bạn được phép xử lý và tuân thủ điều khoản sử dụng, bản quyền, robots.txt của từng website.
-- Có thể bật **Tự tìm nguồn theo chủ đề**. Hệ thống tự kết hợp tên website và các danh mục CMS, cộng thêm từ khóa bạn nhập, rồi gọi một model/combo 9Router có Web Search để lấy URL ứng viên.
-- 9Router chưa công bố một endpoint Web Search riêng ổn định trong tài liệu public, nên discovery dùng `/chat/completions`. Hãy chọn combo/provider thực sự có web search, ví dụ cấu hình dựa trên Perplexity hoặc dịch vụ search được 9Router hỗ trợ; model chỉ biết kiến thức huấn luyện sẽ không tìm được tin mới đáng tin cậy.
+- Có thể bật **Tự tìm nguồn theo chủ đề**. Hệ thống tự kết hợp tên website và các danh mục CMS, cộng thêm từ khóa bạn nhập, rồi dùng DuckDuckGo HTML Search để lấy URL ứng viên.
+- DuckDuckGo chỉ dùng để tìm URL. Backend tải và kiểm tra bài nguồn thật; sau đó model 9Router mới đọc dữ kiện, biên tập lại bài tiếng Việt, chọn danh mục và tạo tags. Vì vậy không cần cấu hình model search riêng.
 - Danh sách domain cho phép có thể để trống để nhận mọi public domain. Domain chặn luôn được ưu tiên và áp dụng cho cả subdomain. URL do AI trả vẫn phải qua DNS/private-IP, robots.txt, timeout, kích thước, chống trùng và bước tải bài thật; URL bịa sẽ tự thất bại.
 - Bot không sao chép HTML nguồn. Nội dung nguồn được chuyển thành văn bản dữ kiện, AI được yêu cầu viết lại, bài cuối được sanitize và tự thêm liên kết nguồn tham khảo.
 - URL và hash nội dung nguồn được chống trùng bằng bảng `ai_generation_log`, tránh đăng lại cùng một tin được syndicate qua nhiều website; nhiều process không thể đồng thời nhận cùng một nguồn. Lỗi nguồn được ghi lại để nguồn khác vẫn tiếp tục.

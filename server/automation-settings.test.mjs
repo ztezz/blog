@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import settingsModule from './automation-settings.js';
 
-const { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings } = settingsModule;
+const { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings, splitList } = settingsModule;
 
 describe('automation settings recovery', () => {
   it('creates the singleton row when it is missing', async () => {
@@ -47,5 +47,15 @@ describe('automation settings recovery', () => {
       author: 'AI',
       default_image_url: '/image.jpg'
     })).toMatchObject({ apiKey: '', hasApiKey: true, rssFeeds: [], websites: [], discoveryTopics: ['Mars'] });
+  });
+
+  it('splits legacy comma-separated URLs stored as a single array item', () => {
+    const legacy = '["https://www.naturalearthdata.com,https://www.esri.com,https://www.usgs.gov"]';
+    expect(parseJsonArray(legacy, true)).toEqual([
+      'https://www.naturalearthdata.com',
+      'https://www.esri.com',
+      'https://www.usgs.gov'
+    ]);
+    expect(splitList(['nasa.gov, esa.int\n usgs.gov'])).toEqual(['nasa.gov', 'esa.int', 'usgs.gov']);
   });
 });

@@ -1,7 +1,14 @@
-const parseJsonArray = value => {
+const splitList = values => values
+  .flatMap(item => typeof item === 'string' ? item.split(/[,\r\n]+/) : [])
+  .map(item => item.trim())
+  .filter(Boolean);
+
+const parseJsonArray = (value, splitItems = false) => {
   try {
     const parsed = JSON.parse(value || '[]');
-    return Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string') : [];
+    if (!Array.isArray(parsed)) return [];
+    const strings = parsed.filter(item => typeof item === 'string');
+    return splitItems ? splitList(strings) : strings;
   } catch {
     return [];
   }
@@ -40,16 +47,17 @@ const serializeAutomationSettings = settings => ({
   apiKey: '',
   hasApiKey: Boolean(settings.api_key),
   model: settings.model || '',
-  rssFeeds: parseJsonArray(settings.rss_feeds),
-  websites: parseJsonArray(settings.website_urls),
+  rssFeeds: parseJsonArray(settings.rss_feeds, true),
+  websites: parseJsonArray(settings.website_urls, true),
   discoveryEnabled: Boolean(settings.discovery_enabled),
+  discoveryProvider: settings.discovery_provider === '9router' ? '9router' : 'duckduckgo',
   discoveryModel: settings.discovery_model || '',
   discoveryTopics: parseJsonArray(settings.discovery_topics),
-  allowedDomains: parseJsonArray(settings.allowed_domains),
-  blockedDomains: parseJsonArray(settings.blocked_domains),
+  allowedDomains: parseJsonArray(settings.allowed_domains, true),
+  blockedDomains: parseJsonArray(settings.blocked_domains, true),
   runHourUtc: Number(settings.run_hour_utc ?? 1),
   author: settings.author || 'CosmoGIS AI',
   defaultImageUrl: settings.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400'
 });
 
-module.exports = { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings };
+module.exports = { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings, splitList };
