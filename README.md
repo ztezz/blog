@@ -16,7 +16,7 @@ CosmoGIS là một nền tảng WebGIS hiện đại kết hợp giữa công ng
 - **3D/Graphics:** Three.js, @react-three/fiber, @react-three/drei.
 - **Backend:** Node.js, Express.
 - **Database:** SQLite (`better-sqlite3`).
-- **Styling:** Lucide React (Icons).
+- **Styling:** Tailwind CSS 4, Tailwind Typography và Lucide React.
 
 ## 📂 Cấu trúc dự án
 
@@ -59,6 +59,7 @@ CosmoGIS là một nền tảng WebGIS hiện đại kết hợp giữa công ng
    ```bash
    npm run check
    ```
+   Lệnh này chạy lần lượt ESLint, Vitest, TypeScript và production build. Có thể chạy riêng bằng `npm run lint`, `npm test`, `npm run typecheck` hoặc `npm run build`.
 
 ## Triển khai frontend trên Cloudflare Pages
 

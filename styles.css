@@ -1,0 +1,51 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --color-space-700: #26334d;
+  --color-space-800: #182238;
+  --color-space-900: #0b1120;
+  --color-space-light: #a7b1c8;
+  --color-space-neon: #66fcf1;
+  --color-space-purple: #a855f7;
+  --color-space-accent: #38bdf8;
+  --animate-float: float 4s ease-in-out infinite;
+  --animate-cloud-move: cloud-move 60s linear infinite;
+  --animate-pulse-slow: pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+
+  @keyframes cloud-move {
+    from { transform: translateX(0); }
+    to { transform: translateX(140vw); }
+  }
+
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  min-width: 320px;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

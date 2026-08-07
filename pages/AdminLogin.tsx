@@ -153,9 +153,9 @@ const AdminLogin: React.FC = () => {
             key={`particle-${i}`}
             className="particle particle-sm bg-cyan-400/40 dark:bg-cyan-400/30"
             style={{
-              left: Math.random() * 100 + '%',
-              animation: `floating-particle ${5 + Math.random() * 5}s linear infinite`,
-              animationDelay: `${Math.random() * 5}s`,
+              left: `${(i * 37) % 100}%`,
+              animation: `floating-particle ${5 + (i % 5)}s linear infinite`,
+              animationDelay: `${(i * 0.7) % 5}s`,
             }}
           />
         ))}
@@ -164,9 +164,9 @@ const AdminLogin: React.FC = () => {
             key={`particle-md-${i}`}
             className="particle particle-md bg-purple-400/30 dark:bg-purple-400/20"
             style={{
-              left: Math.random() * 100 + '%',
-              animation: `floating-particle ${8 + Math.random() * 4}s linear infinite`,
-              animationDelay: `${Math.random() * 8}s`,
+              left: `${(i * 53 + 11) % 100}%`,
+              animation: `floating-particle ${8 + (i % 4)}s linear infinite`,
+              animationDelay: `${(i * 1.1) % 8}s`,
             }}
           />
         ))}

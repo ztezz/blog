@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Mail, MapPin, Phone, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { sendMessage, getSettings } from '../utils/storage';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { DEFAULT_CONTACT_CONTENT } from '../constants';
@@ -34,9 +34,10 @@ const Contact: React.FC = () => {
       await sendMessage(formData);
       setIsSubmitted(true);
       setFormData({ name: '', email: '', subject: '', message: '' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      alert("Gửi tin nhắn thất bại: " + error.message + "\n\n(Lưu ý: Nếu lỗi 404, hãy khởi động lại server)");
+      const message = error instanceof Error ? error.message : 'Lỗi không xác định';
+      alert("Gửi tin nhắn thất bại: " + message + "\n\n(Lưu ý: Nếu lỗi 404, hãy khởi động lại server)");
     } finally {
       setLoading(false);
     }

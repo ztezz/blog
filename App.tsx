@@ -1,19 +1,27 @@
 
-import React, { useEffect } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from './utils/router';
 import Layout from './components/Layout';
-import Home from './pages/Home';
-import BlogList from './pages/BlogList';
-import PostDetail from './pages/PostDetail';
-import About from './pages/About';
-import Contact from './pages/Contact';
-import AdminLogin from './pages/AdminLogin';
-import AdminDashboard from './pages/AdminDashboard';
-import PostEditor from './pages/PostEditor';
-import SettingsEditor from './pages/SettingsEditor';
-import UserManagement from './pages/UserManagement';
-import CategoryManagement from './pages/CategoryManagement';
-import Mailbox from './pages/Mailbox';
+
+const Home = lazy(() => import('./pages/Home'));
+const BlogList = lazy(() => import('./pages/BlogList'));
+const PostDetail = lazy(() => import('./pages/PostDetail'));
+const About = lazy(() => import('./pages/About'));
+const Contact = lazy(() => import('./pages/Contact'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const PostEditor = lazy(() => import('./pages/PostEditor'));
+const SettingsEditor = lazy(() => import('./pages/SettingsEditor'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const CategoryManagement = lazy(() => import('./pages/CategoryManagement'));
+const Mailbox = lazy(() => import('./pages/Mailbox'));
+
+const PageLoader = () => (
+  <div className="min-h-[60vh] flex items-center justify-center" role="status">
+    <div className="h-10 w-10 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
+    <span className="sr-only">Đang tải trang...</span>
+  </div>
+);
 
 // Scroll to top helper
 const ScrollToTop = () => {
@@ -31,7 +39,8 @@ const App: React.FC = () => {
     <BrowserRouter>
       <ScrollToTop />
       <Layout>
-        <Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/blog" element={<BlogList />} />
           <Route path="/blog/:id" element={<PostDetail />} />
@@ -58,7 +67,8 @@ const App: React.FC = () => {
               </a>
             </div>
           } />
-        </Routes>
+          </Routes>
+        </Suspense>
       </Layout>
     </BrowserRouter>
   );

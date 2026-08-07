@@ -620,7 +620,7 @@ app.all('/api/{*splat}', (req, res) => {
   res.status(404).json({ error: `API endpoint not found: ${req.method} ${req.url}` });
 });
 
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error(err);
   if (err instanceof multer.MulterError) {
     return res.status(400).json({ error: err.message });

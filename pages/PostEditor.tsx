@@ -4,9 +4,9 @@ import { useNavigate, useParams } from '../utils/router';
 import { 
   Save, ArrowLeft, Bold, Italic, Underline, 
   Image as ImageIcon, Link as LinkIcon, List, 
-  Type, Code, Quote, Heading, Monitor, Clock, Upload,
+  Type, Code, Quote, Monitor, Clock, Upload,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Palette, Highlighter, Scaling, Minus, Plus
+  Palette, Highlighter, Scaling
 } from 'lucide-react';
 import { getPostById, savePost, isAuthenticated, calculateReadTime, uploadImage, getCategories } from '../utils/storage';
 import { BlogPost, Category } from '../types';

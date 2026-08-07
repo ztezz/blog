@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from '../utils/router';
-import { ArrowLeft, User, Calendar, Share2, Tag } from 'lucide-react';
+import { ArrowLeft, Calendar, Share2, Tag } from 'lucide-react';
 import { getPostById } from '../utils/storage';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { BlogPost } from '../types';

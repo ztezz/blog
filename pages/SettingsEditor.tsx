@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from '../utils/router';
-import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, ExternalLink, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft } from 'lucide-react';
+import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft } from 'lucide-react';
 import { getSettings, saveSettings, isAuthenticated, uploadImage } from '../utils/storage';
 import { SiteSettings, NavItem } from '../types';
 import { DEFAULT_ABOUT_CONTENT, DEFAULT_CONTACT_CONTENT } from '../constants';
@@ -152,7 +152,7 @@ const SettingsEditor: React.FC = () => {
     }
   };
 
-  const updateItemField = (field: keyof NavItem, value: any) => {
+  const updateItemField = (field: keyof NavItem, value: NavItem[keyof NavItem]) => {
     if (!settings || !editingItem) return;
     const updatedItem = { ...editingItem.item, [field]: value };
     setEditingItem({ ...editingItem, item: updatedItem });
