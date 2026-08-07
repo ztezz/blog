@@ -20,6 +20,8 @@ const navItem = z.lazy(() => z.object({
 }));
 
 const schemas = {
+  idParam: z.object({ id }),
+  messageIdParam: z.object({ id: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
   login: z.object({
     username: z.string().trim().min(1).max(50),
     password: z.string().max(200)
@@ -87,4 +89,19 @@ const validateBody = schema => (req, res, next) => {
   return next();
 };
 
-module.exports = { schemas, validateBody };
+const validateParams = schema => (req, res, next) => {
+  const result = schema.safeParse(req.params);
+  if (!result.success) {
+    return res.status(400).json({
+      error: 'Invalid route parameters',
+      issues: result.error.issues.map(issue => ({
+        path: issue.path.join('.'),
+        message: issue.message
+      }))
+    });
+  }
+  req.params = result.data;
+  return next();
+};
+
+module.exports = { schemas, validateBody, validateParams };

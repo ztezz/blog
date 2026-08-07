@@ -24,7 +24,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['server/**/*.js'],
+    files: ['server/**/*.{js,mjs}'],
     languageOptions: { globals: globals.node },
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_', caughtErrors: 'none' }],

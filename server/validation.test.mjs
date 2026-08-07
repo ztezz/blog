@@ -40,4 +40,10 @@ describe('API request schemas', () => {
     expect(result.name).toBe('Nguyen Van A');
     expect(result.message).toBe('Noi dung');
   });
+
+  it('validates resource and numeric message identifiers', () => {
+    expect(schemas.idParam.safeParse({ id: '../post' }).success).toBe(false);
+    expect(schemas.messageIdParam.parse({ id: '42' }).id).toBe(42);
+    expect(schemas.messageIdParam.safeParse({ id: '-1' }).success).toBe(false);
+  });
 });

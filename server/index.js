@@ -7,11 +7,13 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
+const { randomUUID } = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer'); // Import multer
 const db = require('./db');
-const { schemas, validateBody } = require('./validation');
+const { schemas, validateBody, validateParams } = require('./validation');
+const { detectImageType } = require('./media');
 
 const app = express();
 const port = Number(process.env.PORT || 5001);
@@ -153,7 +155,14 @@ const initDb = async () => {
     const userCheck = await db.query('SELECT count(*) AS count FROM users');
     if (parseInt(userCheck.rows[0].count) === 0) {
       console.log('[System] Seeding default admin...');
-      const defaultAdminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || '123', passwordRounds);
+      const adminPassword = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV !== 'production' ? '123' : '');
+      if (!adminPassword) {
+        throw new Error('ADMIN_PASSWORD is required when creating the first production user');
+      }
+      if (process.env.NODE_ENV === 'production' && adminPassword.length < 12) {
+        throw new Error('ADMIN_PASSWORD must contain at least 12 characters in production');
+      }
+      const defaultAdminHash = await bcrypt.hash(adminPassword, passwordRounds);
       await db.query(
         'INSERT INTO users (id, username, password, display_name, role) VALUES ($1, $2, $3, $4, $5)',
         ['admin-01', 'admin', defaultAdminHash, 'Administrator', 'admin']
@@ -255,20 +264,9 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir)
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext)
-  }
-});
-
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter(req, file, callback) {
     if (!allowedImageTypes.has(file.mimetype)) {
@@ -283,11 +281,19 @@ app.use('/api/uploads', express.static(uploadDir));
 app.use('/uploads', express.static(uploadDir));
 
 // Route Upload
-app.post('/api/upload', authenticate, authorize('admin', 'editor'), upload.single('file'), (req, res) => {
+app.post('/api/upload', authenticate, authorize('admin', 'editor'), upload.single('file'), (req, res, next) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  res.json({ url: `${publicApiUrl}/api/uploads/${req.file.filename}` });
+  const imageType = detectImageType(req.file.buffer);
+  if (!imageType || imageType.mime !== req.file.mimetype) {
+    return res.status(400).json({ error: 'Uploaded file content does not match a supported image format' });
+  }
+  const filename = `file-${randomUUID()}${imageType.extension}`;
+  fs.writeFile(path.join(uploadDir, filename), req.file.buffer, error => {
+    if (error) return next(error);
+    return res.json({ url: `${publicApiUrl}/api/uploads/${filename}` });
+  });
 });
 
 // Return absolute media URLs because the frontend and API use different domains.
@@ -429,7 +435,7 @@ app.post('/api/categories', authenticate, authorize('admin'), validateBody(schem
   }
 });
 
-app.delete('/api/categories/:id', authenticate, authorize('admin'), async (req, res) => {
+app.delete('/api/categories/:id', authenticate, authorize('admin'), validateParams(schemas.idParam), async (req, res) => {
   try {
     await db.query('DELETE FROM categories WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -463,7 +469,7 @@ app.get('/api/posts', async (req, res) => {
   }
 });
 
-app.get('/api/posts/:id', async (req, res) => {
+app.get('/api/posts/:id', validateParams(schemas.idParam), async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM posts WHERE id = $1', [req.params.id]);
     if (result.rows.length > 0) {
@@ -511,7 +517,7 @@ app.post('/api/posts', authenticate, authorize('admin', 'editor'), validateBody(
   }
 });
 
-app.delete('/api/posts/:id', authenticate, authorize('admin', 'editor'), async (req, res) => {
+app.delete('/api/posts/:id', authenticate, authorize('admin', 'editor'), validateParams(schemas.idParam), async (req, res) => {
   try {
     await db.query('DELETE FROM posts WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -562,6 +568,9 @@ app.get('/api/users', authenticate, authorize('admin'), async (req, res) => {
 app.post('/api/users', authenticate, authorize('admin'), validateBody(schemas.user), async (req, res) => {
   const u = req.body;
   try {
+    if (u.id === req.user.sub && u.role !== 'admin') {
+      return res.status(400).json({ error: 'You cannot remove your own admin role' });
+    }
     const check = await db.query('SELECT id FROM users WHERE id = $1', [u.id]);
     if (check.rows.length > 0) {
       if (u.password) {
@@ -593,8 +602,18 @@ app.post('/api/users', authenticate, authorize('admin'), validateBody(schemas.us
   }
 });
 
-app.delete('/api/users/:id', authenticate, authorize('admin'), async (req, res) => {
+app.delete('/api/users/:id', authenticate, authorize('admin'), validateParams(schemas.idParam), async (req, res) => {
   try {
+    if (req.params.id === req.user.sub) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+    const user = await db.query('SELECT role FROM users WHERE id = $1', [req.params.id]);
+    if (user.rows[0]?.role === 'admin') {
+      const admins = await db.query("SELECT count(*) AS count FROM users WHERE role = 'admin'");
+      if (Number(admins.rows[0].count) <= 1) {
+        return res.status(400).json({ error: 'The last admin account cannot be deleted' });
+      }
+    }
     await db.query('DELETE FROM users WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
@@ -606,7 +625,6 @@ app.delete('/api/users/:id', authenticate, authorize('admin'), async (req, res) 
 // 5. Messages (Hộp thư)
 app.post('/api/messages', messageLimiter, validateBody(schemas.message), async (req, res) => {
   const m = req.body;
-  console.log('[API] Receiving message from:', m.email); // Debug log
   try {
     await db.query(
       `INSERT INTO messages (name, email, subject, message) VALUES ($1, $2, $3, $4)`,
@@ -629,7 +647,7 @@ app.get('/api/messages', authenticate, authorize('admin'), async (req, res) => {
   }
 });
 
-app.delete('/api/messages/:id', authenticate, authorize('admin'), async (req, res) => {
+app.delete('/api/messages/:id', authenticate, authorize('admin'), validateParams(schemas.messageIdParam), async (req, res) => {
   try {
     await db.query('DELETE FROM messages WHERE id = $1', [req.params.id]);
     res.json({ success: true });
