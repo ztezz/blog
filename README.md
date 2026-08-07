@@ -86,3 +86,36 @@ Nếu dùng Cloudflare Workers Builds thay vì Pages, sử dụng deploy command
 - Production yêu cầu `ADMIN_PASSWORD` tối thiểu 12 ký tự khi tạo người dùng đầu tiên. API chặn tự xóa/tự hạ quyền và không cho xóa admin cuối cùng.
 - Upload chỉ nhận JPEG, PNG, GIF hoặc WebP tối đa 5 MB; backend xác minh chữ ký nội dung, tự đặt UUID và phần mở rộng thay vì tin tên file từ client.
 
+## Tự động tạo bài viết bằng AI
+
+Backend có thể lấy dữ kiện từ danh sách RSS/Atom và website cho phép, sau đó gọi API OpenAI-compatible của 9Router để viết và đăng tối đa một bài trong mỗi lượt chạy.
+
+1. Cài và chạy 9Router: `npm install -g 9router`, sau đó `9router`.
+2. Cấu hình provider/model hoặc combo trong dashboard 9Router.
+3. Nếu 9Router chạy cùng máy backend, dùng `AI_BASE_URL=http://localhost:20128/v1`. Nếu backend ở server khác, dùng tunnel/instance 9Router mà server truy cập được; `localhost` của server không trỏ về máy cá nhân.
+4. Mở **Cài đặt > Tự động AI** trong trang quản trị, nhập model, nguồn, giờ chạy rồi lưu. Các biến `AI_*` trong `.env` chỉ dùng để seed lần đầu khi database chưa có cấu hình.
+5. Chạy thử bằng nút **Tạo bài AI** trong dashboard quản trị. Khi kết quả đúng, bật lịch tự động trong tab cấu hình AI.
+
+Ví dụ:
+
+```env
+AI_AUTOMATION_ENABLED=true
+AI_BASE_URL=http://localhost:20128/v1
+AI_API_KEY=
+AI_MODEL=my-writing-combo
+AI_RUN_HOUR_UTC=1
+AI_RSS_FEEDS=https://example.com/feed.xml,https://example.org/atom.xml
+AI_WEBSITE_URLS=https://example.com/news
+```
+
+- Chỉ thêm nguồn bạn được phép xử lý và tuân thủ điều khoản sử dụng, bản quyền, robots.txt của từng website.
+- Có thể bật **Tự tìm nguồn theo chủ đề**. Hệ thống tự kết hợp tên website và các danh mục CMS, cộng thêm từ khóa bạn nhập, rồi gọi một model/combo 9Router có Web Search để lấy URL ứng viên.
+- 9Router chưa công bố một endpoint Web Search riêng ổn định trong tài liệu public, nên discovery dùng `/chat/completions`. Hãy chọn combo/provider thực sự có web search, ví dụ cấu hình dựa trên Perplexity hoặc dịch vụ search được 9Router hỗ trợ; model chỉ biết kiến thức huấn luyện sẽ không tìm được tin mới đáng tin cậy.
+- Danh sách domain cho phép có thể để trống để nhận mọi public domain. Domain chặn luôn được ưu tiên và áp dụng cho cả subdomain. URL do AI trả vẫn phải qua DNS/private-IP, robots.txt, timeout, kích thước, chống trùng và bước tải bài thật; URL bịa sẽ tự thất bại.
+- Bot không sao chép HTML nguồn. Nội dung nguồn được chuyển thành văn bản dữ kiện, AI được yêu cầu viết lại, bài cuối được sanitize và tự thêm liên kết nguồn tham khảo.
+- URL và hash nội dung nguồn được chống trùng bằng bảng `ai_generation_log`, tránh đăng lại cùng một tin được syndicate qua nhiều website; nhiều process không thể đồng thời nhận cùng một nguồn. Lỗi nguồn được ghi lại để nguồn khác vẫn tiếp tục.
+- Endpoint admin: `GET/POST /api/automation/settings`, `GET /api/automation/status`, `GET /api/automation/history`, `POST /api/automation/run`.
+- API key được lưu trong SQLite nhưng endpoint đọc chỉ trả trạng thái có/không, không bao giờ trả secret về trình duyệt. Để trống ô key khi lưu sẽ giữ key cũ; thao tác xóa phải được chọn rõ ràng.
+- API key trong file SQLite là secret at rest: giới hạn quyền đọc file database/backup và chỉ nhập key nếu endpoint 9Router thực sự yêu cầu. 9Router chạy local thường có thể để trống.
+- Chế độ hiện tại đăng bài ngay theo lựa chọn của bạn. Nên thường xuyên kiểm tra lịch sử và nội dung vì AI vẫn có thể tạo thông tin sai dù prompt yêu cầu không bịa dữ kiện.
+

@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from '../utils/router';
-import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database } from 'lucide-react';
+import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles } from 'lucide-react';
 import { API_URL, getPosts, deletePost, getCurrentUser, logout, isAuthenticated } from '../utils/storage';
 import { BlogPost } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -63,6 +64,30 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleGeneratePost = async () => {
+    if (!window.confirm('Tạo và đăng ngay một bài viết AI từ nguồn mới nhất?')) return;
+    setIsGenerating(true);
+    try {
+      const token = getCurrentUser()?.token;
+      const response = await fetch(`${API_URL}/automation/run`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Không thể tạo bài viết AI');
+      if (data.status === 'published') {
+        alert(`Đã đăng bài AI: ${data.title}`);
+        await loadPosts();
+      } else {
+        alert(data.reason === 'no-new-source' ? 'Không tìm thấy nguồn mới chưa được xử lý.' : 'Một lượt tạo bài đang chạy.');
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Không thể tạo bài viết AI');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
       <div className="max-w-7xl mx-auto">
@@ -104,6 +129,15 @@ const AdminDashboard: React.FC = () => {
             >
               <Settings size={18} className="mr-2" /> Cài đặt
             </Link>
+
+            <button
+              onClick={handleGeneratePost}
+              disabled={isGenerating}
+              className={`flex items-center px-4 py-2 ${isGenerating ? 'bg-gray-300 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded font-bold transition-colors`}
+              title="Lấy nguồn mới và đăng bài bằng AI"
+            >
+              <Sparkles size={18} className="mr-2" /> {isGenerating ? 'AI đang viết...' : 'Tạo bài AI'}
+            </button>
 
             <button 
               onClick={handleRestoreDb}

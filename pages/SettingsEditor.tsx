@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from '../utils/router';
-import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft } from 'lucide-react';
-import { getSettings, saveSettings, isAuthenticated, uploadImage } from '../utils/storage';
-import { SiteSettings, NavItem } from '../types';
+import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft, Sparkles } from 'lucide-react';
+import { getAutomationSettings, getSettings, saveAutomationSettings, saveSettings, isAuthenticated, uploadImage } from '../utils/storage';
+import { AutomationSettings, SiteSettings, NavItem } from '../types';
 import { DEFAULT_ABOUT_CONTENT, DEFAULT_CONTACT_CONTENT } from '../constants';
 
 const SettingsEditor: React.FC = () => {
@@ -12,7 +12,8 @@ const SettingsEditor: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'menu' | 'pages'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'menu' | 'pages' | 'automation'>('general');
+  const [automationSettings, setAutomationSettings] = useState<AutomationSettings | null>(null);
   
   // State for Navigation Builder
   const [editingItem, setEditingItem] = useState<{parentId: string | null, item: NavItem} | null>(null);
@@ -33,6 +34,7 @@ const SettingsEditor: React.FC = () => {
       setSettings(s);
     };
     load();
+    getAutomationSettings().then(setAutomationSettings).catch(error => console.error('Failed to load AI settings:', error));
   }, [navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -225,11 +227,19 @@ const SettingsEditor: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (settings) {
-      setLoading(true);
+    setLoading(true);
+    try {
+      if (activeTab === 'automation' && automationSettings) {
+        await saveAutomationSettings(automationSettings);
+        setAutomationSettings({ ...automationSettings, apiKey: '', clearApiKey: false, hasApiKey: automationSettings.clearApiKey ? false : automationSettings.hasApiKey || Boolean(automationSettings.apiKey) });
+      } else if (settings) {
       await saveSettings(settings);
-      setLoading(false);
+      }
       alert('Đã lưu cài đặt thành công!');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Không thể lưu cài đặt');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -266,6 +276,12 @@ const SettingsEditor: React.FC = () => {
             className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'pages' ? 'border-sky-500 dark:border-cyan-400 text-sky-600 dark:text-cyan-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
           >
             Nội dung Trang
+          </button>
+          <button
+            onClick={() => setActiveTab('automation')}
+            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'automation' ? 'border-purple-500 text-purple-600 dark:text-purple-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-white'}`}
+          >
+            Tự động AI
           </button>
         </div>
 
@@ -458,6 +474,84 @@ const SettingsEditor: React.FC = () => {
                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm focus:border-sky-500 dark:focus:border-cyan-400 outline-none"
                    placeholder="<p>Địa chỉ...</p>"
                  ></textarea>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'automation' && automationSettings && (
+            <div className="space-y-8 animate-fadeIn">
+              <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-white/10 shadow-lg">
+                <h3 className="text-xl font-bold text-purple-600 dark:text-purple-400 mb-2 flex items-center">
+                  <Sparkles className="mr-2" size={20} /> Tạo bài tự động bằng 9Router
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-gray-400 mb-6">Cấu hình được lưu trong SQLite. Để trống API key để giữ key đang lưu.</p>
+                <label className="flex items-center gap-3 mb-6 text-slate-700 dark:text-gray-200">
+                  <input type="checkbox" checked={automationSettings.enabled} onChange={event => setAutomationSettings({ ...automationSettings, enabled: event.target.checked })} />
+                  Bật lịch tạo và đăng một bài mỗi ngày
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">9Router Base URL</label>
+                    <input type="url" value={automationSettings.baseUrl} onChange={event => setAutomationSettings({ ...automationSettings, baseUrl: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder="http://localhost:20128/v1" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Model hoặc Combo</label>
+                    <input type="text" value={automationSettings.model} onChange={event => setAutomationSettings({ ...automationSettings, model: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required={automationSettings.enabled} />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Giờ chạy UTC (0-23)</label>
+                    <input type="number" min="0" max="23" value={automationSettings.runHourUtc} onChange={event => setAutomationSettings({ ...automationSettings, runHourUtc: Number(event.target.value) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">API key {automationSettings.hasApiKey ? '(đã lưu)' : '(chưa có)'}</label>
+                    <input type="password" value={automationSettings.apiKey} onChange={event => setAutomationSettings({ ...automationSettings, apiKey: event.target.value, clearApiKey: false })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder={automationSettings.hasApiKey ? 'Để trống để giữ key hiện tại' : 'Có thể để trống nếu 9Router không yêu cầu'} autoComplete="new-password" />
+                    {automationSettings.hasApiKey && <label className="flex items-center gap-2 mt-2 text-sm text-red-600 dark:text-red-400"><input type="checkbox" checked={automationSettings.clearApiKey || false} onChange={event => setAutomationSettings({ ...automationSettings, clearApiKey: event.target.checked, apiKey: '' })} /> Xóa API key đang lưu</label>}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Tên tác giả</label>
+                    <input type="text" value={automationSettings.author} onChange={event => setAutomationSettings({ ...automationSettings, author: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Ảnh mặc định</label>
+                    <input type="url" value={automationSettings.defaultImageUrl} onChange={event => setAutomationSettings({ ...automationSettings, defaultImageUrl: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">RSS/Atom, mỗi dòng một URL</label>
+                    <textarea rows={8} value={automationSettings.rssFeeds.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, rssFeeds: event.target.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Website, mỗi dòng một URL</label>
+                    <textarea rows={8} value={automationSettings.websites.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, websites: event.target.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
+                  </div>
+                  <div className="md:col-span-2 border-t border-slate-200 dark:border-white/10 pt-6">
+                    <label className="flex items-center gap-3 text-slate-700 dark:text-gray-200">
+                      <input type="checkbox" checked={automationSettings.discoveryEnabled} onChange={event => setAutomationSettings({ ...automationSettings, discoveryEnabled: event.target.checked })} />
+                      Tự tìm nguồn mới theo chủ đề website bằng model có Web Search
+                    </label>
+                    <p className="text-xs text-slate-500 dark:text-gray-500 mt-2">Hệ thống luôn kết hợp tên website và các danh mục hiện có. Các chủ đề bên dưới là phần bổ sung.</p>
+                  </div>
+                  {automationSettings.discoveryEnabled && (
+                    <>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Model/Combo Web Search của 9Router</label>
+                        <input type="text" value={automationSettings.discoveryModel} onChange={event => setAutomationSettings({ ...automationSettings, discoveryModel: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder="Ví dụ combo dùng Perplexity, Tavily hoặc provider có web search" required />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Chủ đề bổ sung, mỗi dòng một chủ đề</label>
+                        <textarea rows={7} value={automationSettings.discoveryTopics.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, discoveryTopics: event.target.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder={'WebGIS mới nhất\nViễn thám và vệ tinh\nBản đồ Sao Hỏa'} />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Domain cho phép, mỗi dòng một domain</label>
+                        <textarea rows={7} value={automationSettings.allowedDomains.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, allowedDomains: event.target.value.split(/\r?\n/).map(value => value.trim().toLowerCase()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'nasa.gov\nesa.int\nsciencedaily.com'} />
+                        <p className="text-xs text-slate-500 mt-1">Để trống để cho phép mọi public domain.</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Domain chặn, mỗi dòng một domain</label>
+                        <textarea rows={4} value={automationSettings.blockedDomains.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, blockedDomains: event.target.value.split(/\r?\n/).map(value => value.trim().toLowerCase()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'spam.example\nlow-quality.example'} />
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}

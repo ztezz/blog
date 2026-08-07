@@ -46,4 +46,27 @@ describe('API request schemas', () => {
     expect(schemas.messageIdParam.parse({ id: '42' }).id).toBe(42);
     expect(schemas.messageIdParam.safeParse({ id: '-1' }).success).toBe(false);
   });
+
+  it('validates database-backed automation settings', () => {
+    const result = schemas.automationSettings.parse({
+      enabled: true,
+      baseUrl: 'http://localhost:20128/v1',
+      apiKey: '',
+      model: 'writing-combo',
+      rssFeeds: ['https://example.com/feed.xml'],
+      websites: [],
+      discoveryEnabled: true,
+      discoveryModel: 'web-search-combo',
+      discoveryTopics: ['Bản đồ Sao Hỏa'],
+      allowedDomains: ['nasa.gov'],
+      blockedDomains: ['spam.example'],
+      runHourUtc: 1,
+      author: 'CosmoGIS AI',
+      defaultImageUrl: 'https://example.com/image.jpg'
+    });
+    expect(result.model).toBe('writing-combo');
+    expect(schemas.automationSettings.safeParse({ ...result, discoveryEnabled: false, rssFeeds: [], websites: [] }).success).toBe(false);
+    expect(schemas.automationSettings.safeParse({ ...result, rssFeeds: [], websites: [] }).success).toBe(true);
+    expect(schemas.automationSettings.safeParse({ ...result, enabled: false, model: '', rssFeeds: [], websites: [] }).success).toBe(true);
+  });
 });

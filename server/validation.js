@@ -10,6 +10,8 @@ const safeHref = z.string().trim().max(2048).refine(
   value => value === '#' || value.startsWith('/') || /^https?:\/\//i.test(value) || !/^[a-z][a-z\d+.-]*:/i.test(value),
   'Unsupported URL protocol'
 );
+const httpUrl = z.url().refine(value => /^https?:\/\//i.test(value), 'Only HTTP(S) URLs are allowed');
+const domain = z.string().trim().toLowerCase().min(1).max(253).regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/);
 
 const navItem = z.lazy(() => z.object({
   id,
@@ -22,6 +24,27 @@ const navItem = z.lazy(() => z.object({
 const schemas = {
   idParam: z.object({ id }),
   messageIdParam: z.object({ id: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER) }),
+  automationSettings: z.object({
+    enabled: z.boolean(),
+    baseUrl: httpUrl,
+    apiKey: z.string().max(1000).optional().default(''),
+    clearApiKey: z.boolean().optional().default(false),
+    model: z.string().trim().max(200),
+    rssFeeds: z.array(httpUrl).max(50),
+    websites: z.array(httpUrl).max(50),
+    discoveryEnabled: z.boolean().optional().default(false),
+    discoveryModel: z.string().trim().max(200).optional().default(''),
+    discoveryTopics: z.array(z.string().trim().min(2).max(200)).max(30).optional().default([]),
+    allowedDomains: z.array(domain).max(100).optional().default([]),
+    blockedDomains: z.array(domain).max(100).optional().default([]),
+    runHourUtc: z.number().int().min(0).max(23),
+    author: z.string().trim().min(1).max(100),
+    defaultImageUrl: optionalMediaUrl
+  }).superRefine((value, context) => {
+    if (value.enabled && !value.model) context.addIssue({ code: 'custom', message: 'Model is required when automation is enabled', path: ['model'] });
+    if (value.enabled && value.rssFeeds.length + value.websites.length === 0 && !value.discoveryEnabled) context.addIssue({ code: 'custom', message: 'At least one RSS feed, website or topic discovery must be enabled', path: ['rssFeeds'] });
+    if (value.enabled && value.discoveryEnabled && !value.discoveryModel) context.addIssue({ code: 'custom', message: 'A search model is required for topic discovery', path: ['discoveryModel'] });
+  }),
   login: z.object({
     username: z.string().trim().min(1).max(50),
     password: z.string().max(200)

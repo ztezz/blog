@@ -14,6 +14,7 @@ const multer = require('multer'); // Import multer
 const db = require('./db');
 const { schemas, validateBody, validateParams } = require('./validation');
 const { detectImageType } = require('./media');
+const { createAutomation } = require('./automation');
 
 const app = express();
 const port = Number(process.env.PORT || 5001);
@@ -70,6 +71,14 @@ const messageLimiter = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { error: 'Too many messages. Please try again later.' }
+});
+
+const automationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 2,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: 'Too many automation requests. Please try again later.' }
 });
 
 const hashPlaintextPasswords = async () => {
@@ -243,6 +252,74 @@ const initDb = async () => {
         name VARCHAR(255) NOT NULL
       );
     `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS ai_generation_log (
+        source_url TEXT PRIMARY KEY,
+        content_hash VARCHAR(64),
+        status VARCHAR(20) NOT NULL,
+        claimed_at TIMESTAMP,
+        published_at TIMESTAMP,
+        post_id VARCHAR(50),
+        error TEXT
+      );
+    `);
+    const automationColumns = await db.query('PRAGMA table_info(ai_generation_log)');
+    if (!automationColumns.rows.some(column => column.name === 'content_hash')) {
+      await db.query('ALTER TABLE ai_generation_log ADD COLUMN content_hash VARCHAR(64)');
+    }
+    await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_generation_content_hash ON ai_generation_log(content_hash) WHERE content_hash IS NOT NULL');
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS ai_automation_settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        enabled INTEGER NOT NULL DEFAULT 0,
+        base_url TEXT NOT NULL,
+        api_key TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL DEFAULT '',
+        rss_feeds TEXT NOT NULL DEFAULT '[]',
+        website_urls TEXT NOT NULL DEFAULT '[]',
+        discovery_enabled INTEGER NOT NULL DEFAULT 0,
+        discovery_model TEXT NOT NULL DEFAULT '',
+        discovery_topics TEXT NOT NULL DEFAULT '[]',
+        allowed_domains TEXT NOT NULL DEFAULT '[]',
+        blocked_domains TEXT NOT NULL DEFAULT '[]',
+        run_hour_utc INTEGER NOT NULL DEFAULT 1,
+        author VARCHAR(100) NOT NULL DEFAULT 'CosmoGIS AI',
+        default_image_url TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    const settingsColumns = await db.query('PRAGMA table_info(ai_automation_settings)');
+    const settingsMigrations = [
+      ['discovery_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+      ['discovery_model', "TEXT NOT NULL DEFAULT ''"],
+      ['discovery_topics', "TEXT NOT NULL DEFAULT '[]'"],
+      ['allowed_domains', "TEXT NOT NULL DEFAULT '[]'"],
+      ['blocked_domains', "TEXT NOT NULL DEFAULT '[]'"]
+    ];
+    for (const [column, definition] of settingsMigrations) {
+      if (!settingsColumns.rows.some(existing => existing.name === column)) {
+        await db.query(`ALTER TABLE ai_automation_settings ADD COLUMN ${column} ${definition}`);
+      }
+    }
+    const envUrls = value => (value || '').split(',').map(url => url.trim()).filter(Boolean);
+    await db.query(
+      `INSERT OR IGNORE INTO ai_automation_settings
+       (id, enabled, base_url, api_key, model, rss_feeds, website_urls, run_hour_utc, author, default_image_url)
+       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        process.env.AI_AUTOMATION_ENABLED === 'true' ? 1 : 0,
+        process.env.AI_BASE_URL || 'http://localhost:20128/v1',
+        process.env.AI_API_KEY || '',
+        process.env.AI_MODEL || '',
+        JSON.stringify(envUrls(process.env.AI_RSS_FEEDS)),
+        JSON.stringify(envUrls(process.env.AI_WEBSITE_URLS)),
+        Number(process.env.AI_RUN_HOUR_UTC || 1),
+        process.env.AI_AUTHOR || 'CosmoGIS AI',
+        process.env.AI_DEFAULT_IMAGE_URL || 'https://picsum.photos/seed/cosmogis-ai/800/400'
+      ]
+    );
      // Seed Categories
     const catCheck = await db.query('SELECT count(*) AS count FROM categories');
     if (parseInt(catCheck.rows[0].count) === 0) {
@@ -310,6 +387,8 @@ const fixUrl = (url) => {
 
 // --- API ROUTES ---
 
+const automation = createAutomation({ db });
+
 app.get('/', (req, res) => {
   res.json({
     service: 'CosmoGIS API',
@@ -321,6 +400,81 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.get('/api/automation/status', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    return res.json(await automation.status());
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/automation/settings', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT * FROM ai_automation_settings WHERE id = 1');
+    const settings = result.rows[0];
+    return res.json({
+      enabled: Boolean(settings.enabled),
+      baseUrl: settings.base_url,
+      apiKey: '',
+      hasApiKey: Boolean(settings.api_key),
+      model: settings.model,
+      rssFeeds: JSON.parse(settings.rss_feeds || '[]'),
+      websites: JSON.parse(settings.website_urls || '[]'),
+      discoveryEnabled: Boolean(settings.discovery_enabled),
+      discoveryModel: settings.discovery_model || '',
+      discoveryTopics: JSON.parse(settings.discovery_topics || '[]'),
+      allowedDomains: JSON.parse(settings.allowed_domains || '[]'),
+      blockedDomains: JSON.parse(settings.blocked_domains || '[]'),
+      runHourUtc: settings.run_hour_utc,
+      author: settings.author,
+      defaultImageUrl: settings.default_image_url
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/automation/settings', authenticate, authorize('admin'), validateBody(schemas.automationSettings), async (req, res, next) => {
+  try {
+    const settings = req.body;
+    await db.query(
+      `UPDATE ai_automation_settings SET
+       enabled=$1, base_url=$2,
+       api_key=CASE WHEN $3=1 THEN '' WHEN $4!='' THEN $4 ELSE api_key END,
+       model=$5, rss_feeds=$6, website_urls=$7,
+       discovery_enabled=$8, discovery_model=$9, discovery_topics=$10,
+       allowed_domains=$11, blocked_domains=$12, run_hour_utc=$13,
+       author=$14, default_image_url=$15, updated_at=CURRENT_TIMESTAMP
+       WHERE id=1`,
+      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl]
+    );
+    await automation.reschedule();
+    return res.json({ success: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/automation/history', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const result = await db.query(
+      'SELECT source_url, content_hash, status, claimed_at, published_at, post_id, error FROM ai_generation_log ORDER BY claimed_at DESC LIMIT 50'
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/automation/run', authenticate, authorize('admin'), automationLimiter, async (req, res, next) => {
+  try {
+    const result = await automation.run();
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
 });
 
 // 0. Database Restore
@@ -675,7 +829,8 @@ app.use((err, req, res, _next) => {
 });
 
 // Initialize DB then Start Server
-initDb().then(() => {
+initDb().then(async () => {
+    await automation.schedule();
     app.listen(port, () => {
       console.log(`API server running on port ${port}`);
       console.log('Routes registered: /api/messages, /api/posts, /api/users, /api/settings, /api/categories');

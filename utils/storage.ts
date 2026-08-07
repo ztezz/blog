@@ -1,5 +1,5 @@
 
-import { BlogPost, SiteSettings, User, ContactMessage, Category } from '../types';
+import { AutomationSettings, BlogPost, SiteSettings, User, ContactMessage, Category } from '../types';
 import { BLOG_POSTS as INITIAL_POSTS, CATEGORIES as INITIAL_CATEGORIES } from '../constants';
 
 // --- Configuration ---
@@ -207,6 +207,18 @@ export const saveSettings = async (settings: SiteSettings): Promise<void> => {
     return;
   }
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+};
+
+export const getAutomationSettings = async (): Promise<AutomationSettings> => {
+  return fetchApi<AutomationSettings>('/automation/settings');
+};
+
+export const saveAutomationSettings = async (settings: AutomationSettings): Promise<void> => {
+  await fetchApi('/automation/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings)
+  });
 };
 
 // --- User Management Logic ---

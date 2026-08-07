@@ -44,6 +44,25 @@ export interface SiteSettings {
   contactContent?: string; 
 }
 
+export interface AutomationSettings {
+  enabled: boolean;
+  baseUrl: string;
+  apiKey: string;
+  hasApiKey: boolean;
+  clearApiKey?: boolean;
+  model: string;
+  rssFeeds: string[];
+  websites: string[];
+  discoveryEnabled: boolean;
+  discoveryModel: string;
+  discoveryTopics: string[];
+  allowedDomains: string[];
+  blockedDomains: string[];
+  runHourUtc: number;
+  author: string;
+  defaultImageUrl: string;
+}
+
 export interface User {
   id: string;
   username: string;
