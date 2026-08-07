@@ -293,11 +293,21 @@ const initDb = async () => {
     `);
     const settingsColumns = await db.query('PRAGMA table_info(ai_automation_settings)');
     const settingsMigrations = [
+      ['enabled', 'INTEGER NOT NULL DEFAULT 0'],
+      ['base_url', "TEXT NOT NULL DEFAULT 'http://localhost:20128/v1'"],
+      ['api_key', "TEXT NOT NULL DEFAULT ''"],
+      ['model', "TEXT NOT NULL DEFAULT ''"],
+      ['rss_feeds', "TEXT NOT NULL DEFAULT '[]'"],
+      ['website_urls', "TEXT NOT NULL DEFAULT '[]'"],
       ['discovery_enabled', 'INTEGER NOT NULL DEFAULT 0'],
       ['discovery_model', "TEXT NOT NULL DEFAULT ''"],
       ['discovery_topics', "TEXT NOT NULL DEFAULT '[]'"],
       ['allowed_domains', "TEXT NOT NULL DEFAULT '[]'"],
-      ['blocked_domains', "TEXT NOT NULL DEFAULT '[]'"]
+      ['blocked_domains', "TEXT NOT NULL DEFAULT '[]'"],
+      ['run_hour_utc', 'INTEGER NOT NULL DEFAULT 1'],
+      ['author', "VARCHAR(100) NOT NULL DEFAULT 'CosmoGIS AI'"],
+      ['default_image_url', "TEXT NOT NULL DEFAULT 'https://picsum.photos/seed/cosmogis-ai/800/400'"],
+      ['updated_at', 'TIMESTAMP']
     ];
     for (const [column, definition] of settingsMigrations) {
       if (!settingsColumns.rows.some(existing => existing.name === column)) {
@@ -395,16 +405,17 @@ app.get('/api/automation/status', authenticate, authorize('admin'), async (req, 
   }
 });
 
-app.get('/api/automation/settings', authenticate, authorize('admin'), async (req, res, next) => {
+app.get('/api/automation/settings', authenticate, authorize('admin'), async (req, res) => {
   try {
     const settings = await ensureAutomationSettings(db);
     return res.json(serializeAutomationSettings(settings));
   } catch (error) {
-    return next(error);
+    console.error('[Automation] Failed to read settings:', error);
+    return res.status(500).json({ error: 'Unable to load AI settings', code: 'AI_SETTINGS_LOAD_FAILED' });
   }
 });
 
-app.post('/api/automation/settings', authenticate, authorize('admin'), validateBody(schemas.automationSettings), async (req, res, next) => {
+app.post('/api/automation/settings', authenticate, authorize('admin'), validateBody(schemas.automationSettings), async (req, res) => {
   try {
     const settings = req.body;
     await db.query(
@@ -422,7 +433,8 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
     const saved = await ensureAutomationSettings(db);
     return res.json(serializeAutomationSettings(saved));
   } catch (error) {
-    return next(error);
+    console.error('[Automation] Failed to update settings:', error);
+    return res.status(500).json({ error: 'Unable to save AI settings', code: 'AI_SETTINGS_UPDATE_FAILED' });
   }
 });
 

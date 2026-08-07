@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { prepareSql } = require('./sql');
 
 const databasePath = path.resolve(
   process.env.SQLITE_PATH || path.join(__dirname, 'data', 'cosmogis.db')
@@ -12,16 +13,15 @@ const database = new Database(databasePath);
 database.pragma('journal_mode = WAL');
 database.pragma('foreign_keys = ON');
 
-const toSqlitePlaceholders = (sql) => sql.replace(/\$\d+/g, '?');
-
 const query = async (sql, params = []) => {
-  const statement = database.prepare(toSqlitePlaceholders(sql));
+  const prepared = prepareSql(sql, params);
+  const statement = database.prepare(prepared.sql);
 
   if (/^\s*(SELECT|PRAGMA|WITH)\b/i.test(sql)) {
-    return { rows: statement.all(...params) };
+    return { rows: statement.all(...prepared.params) };
   }
 
-  const result = statement.run(...params);
+  const result = statement.run(...prepared.params);
   return { rows: [], rowCount: result.changes, lastID: result.lastInsertRowid };
 };
 
