@@ -49,11 +49,15 @@ const extractArticleLinks = (html, websiteUrl) => {
   const $ = cheerio.load(html);
   const origin = new URL(websiteUrl).origin;
   const links = [];
-  $('article a[href], main a[href]').each((_, element) => {
+  const primaryLinks = $('article a[href], main a[href]');
+  const elements = primaryLinks.length > 0 ? primaryLinks : $('body a[href]');
+  elements.each((_, element) => {
     try {
       const url = new URL($(element).attr('href'), websiteUrl);
       url.hash = '';
-      if (url.origin === origin && url.pathname !== '/' && !links.includes(url.href)) links.push(url.href);
+      const text = $(element).text().replace(/\s+/g, ' ').trim();
+      const excludedPath = /\.(?:jpg|jpeg|png|gif|webp|svg|pdf|zip|xml)$/i.test(url.pathname) || /\/(?:tag|tags|category|categories|author|login|register|privacy|contact)(?:\/|$)/i.test(url.pathname);
+      if (url.origin === origin && url.pathname !== '/' && !excludedPath && (primaryLinks.length > 0 || text.length >= 12) && !links.includes(url.href)) links.push(url.href);
     } catch {
       // Ignore malformed links from source markup.
     }
@@ -210,7 +214,7 @@ const createAutomation = ({ db, env = process.env }) => {
     if (!Number.isInteger(config.runHourUtc) || config.runHourUtc < 0 || config.runHourUtc > 23) throw new Error('AI_RUN_HOUR_UTC must be an integer from 0 to 23');
   };
 
-  const discoverCandidates = async config => {
+  const discoverCandidates = async (config, diagnostics) => {
     const settingsResult = await db.query('SELECT site_name_prefix, site_name_suffix FROM settings WHERE id = 1');
     const categoryResult = await db.query('SELECT name FROM categories ORDER BY name');
     const siteName = settingsResult.rows[0] ? `${settingsResult.rows[0].site_name_prefix || ''}${settingsResult.rows[0].site_name_suffix || ''}` : 'CosmoGIS';
@@ -246,23 +250,30 @@ const createAutomation = ({ db, env = process.env }) => {
     const content = payload?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new Error('Search model returned an invalid response');
     const parsed = searchResultsSchema.parse(JSON.parse(cleanJsonText(content)));
-    return parsed.results.filter(result => isAllowedDiscoveryUrl(result.url, config.allowedDomains, config.blockedDomains));
+    diagnostics.discoveryFound += parsed.results.length;
+    const accepted = parsed.results.filter(result => isAllowedDiscoveryUrl(result.url, config.allowedDomains, config.blockedDomains));
+    diagnostics.discoveryRejected += parsed.results.length - accepted.length;
+    return accepted;
   };
 
-  const collectCandidates = async config => {
+  const collectCandidates = async (config, diagnostics) => {
     const candidates = [];
     if (config.discoveryEnabled) {
       try {
-        candidates.push(...await discoverCandidates(config));
+        candidates.push(...await discoverCandidates(config, diagnostics));
       } catch (error) {
+        diagnostics.errors.push(`Discovery: ${error.message}`);
         console.error('[Automation] Topic discovery failed:', error.message);
       }
     }
     for (const feedUrl of config.rssFeeds) {
       try {
         const xml = await fetchSource(feedUrl);
-        candidates.push(...parseFeed(xml, feedUrl));
+        const feedCandidates = parseFeed(xml, feedUrl);
+        diagnostics.rssItems += feedCandidates.length;
+        candidates.push(...feedCandidates);
       } catch (error) {
+        diagnostics.errors.push(`RSS ${feedUrl}: ${error.message}`);
         console.error(`[Automation] RSS source failed (${feedUrl}):`, error.message);
       }
     }
@@ -270,17 +281,23 @@ const createAutomation = ({ db, env = process.env }) => {
       try {
         if (!await robotsAllows(websiteUrl)) throw new Error('Source disallows crawling in robots.txt');
         const html = await fetchSource(websiteUrl);
-        candidates.push(...extractArticleLinks(html, websiteUrl).map(url => ({ url, title: '', publishedAt: '', summary: '' })));
+        const websiteLinks = extractArticleLinks(html, websiteUrl);
+        diagnostics.websiteLinks += websiteLinks.length;
+        candidates.push(...websiteLinks.map(url => ({ url, title: '', publishedAt: '', summary: '' })));
       } catch (error) {
+        diagnostics.errors.push(`Website ${websiteUrl}: ${error.message}`);
         console.error(`[Automation] Website source failed (${websiteUrl}):`, error.message);
       }
     }
-    return [...new Map(candidates.map(candidate => [candidate.url, candidate])).values()]
+    const uniqueCandidates = [...new Map(candidates.map(candidate => [candidate.url, candidate])).values()]
       .sort((first, second) => {
         const firstDate = Date.parse(first.publishedAt || '') || 0;
         const secondDate = Date.parse(second.publishedAt || '') || 0;
         return secondDate - firstDate;
       });
+    diagnostics.candidates = uniqueCandidates.length;
+    diagnostics.errors = diagnostics.errors.slice(0, 10);
+    return uniqueCandidates;
   };
 
   const claimCandidate = async candidate => {
@@ -333,9 +350,23 @@ const createAutomation = ({ db, env = process.env }) => {
     try {
       const config = await loadConfig();
       validateConfig(config);
-      const candidates = await collectCandidates(config);
+      const diagnostics = {
+        discoveryFound: 0,
+        discoveryRejected: 0,
+        rssItems: 0,
+        websiteLinks: 0,
+        candidates: 0,
+        alreadyProcessed: 0,
+        duplicates: 0,
+        failed: 0,
+        errors: []
+      };
+      const candidates = await collectCandidates(config, diagnostics);
       for (const candidate of candidates) {
-        if (!await claimCandidate(candidate)) continue;
+        if (!await claimCandidate(candidate)) {
+          diagnostics.alreadyProcessed += 1;
+          continue;
+        }
         try {
           if (!await robotsAllows(candidate.url)) throw new Error('Source disallows crawling in robots.txt');
           const html = await fetchSource(candidate.url);
@@ -344,6 +375,7 @@ const createAutomation = ({ db, env = process.env }) => {
           const contentHash = createHash('sha256').update(article.content.replace(/\s+/g, ' ').trim().toLowerCase()).digest('hex');
           const duplicate = await db.query("SELECT source_url FROM ai_generation_log WHERE content_hash=$1 AND status='published'", [contentHash]);
           if (duplicate.rows.length > 0) {
+            diagnostics.duplicates += 1;
             await db.query("UPDATE ai_generation_log SET status='duplicate', content_hash=$1, error=$2 WHERE source_url=$3", [contentHash, `Duplicate of ${duplicate.rows[0].source_url}`, candidate.url]);
             continue;
           }
@@ -369,10 +401,12 @@ const createAutomation = ({ db, env = process.env }) => {
           lastResult = { status: 'published', postId, sourceUrl: candidate.url, title: generated.title };
           return lastResult;
         } catch (error) {
+          diagnostics.failed += 1;
+          if (diagnostics.errors.length < 10) diagnostics.errors.push(`${candidate.url}: ${error.message || error}`);
           await db.query("UPDATE ai_generation_log SET status='failed', error=$1 WHERE source_url=$2", [String(error.message || error).slice(0, 1000), candidate.url]);
         }
       }
-      lastResult = { status: 'skipped', reason: 'no-new-source' };
+      lastResult = { status: 'skipped', reason: 'no-new-source', diagnostics };
       return lastResult;
     } finally {
       running = false;

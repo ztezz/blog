@@ -19,6 +19,11 @@ describe('content automation helpers', () => {
     expect(extractArticleLinks(html, 'https://example.com/news')).toEqual(['https://example.com/news/one']);
   });
 
+  it('falls back to meaningful body links when a website has no main or article element', () => {
+    const html = '<body><a href="/post/one">A sufficiently descriptive article title</a><a href="/privacy">Privacy policy page</a><a href="/x">Short</a></body>';
+    expect(extractArticleLinks(html, 'https://example.com')).toEqual(['https://example.com/post/one']);
+  });
+
   it('extracts article text and removes executable elements', () => {
     const article = extractArticle('<article><h1>Title</h1><script>alert(1)</script><p>This is a sufficiently detailed paragraph about satellite mapping.</p></article>', 'https://example.com/post');
     expect(article.title).toBe('Title');
@@ -111,5 +116,43 @@ describe('content automation helpers', () => {
     expect(postInsert.params[4]).toBe('Database Author');
     expect(fetch).toHaveBeenCalledWith('http://9router.test/v1/chat/completions', expect.anything());
     expect(queries.some(query => query.sql.includes("status='published'"))).toBe(true);
+  });
+
+  it('returns diagnostics when topic discovery finds no source', async () => {
+    const db = {
+      query: vi.fn(async sql => {
+        if (sql.includes('SELECT * FROM ai_automation_settings')) return {
+          rows: [{
+            enabled: 1,
+            base_url: 'http://9router.test/v1',
+            api_key: '',
+            model: 'writer',
+            rss_feeds: '[]',
+            website_urls: '[]',
+            discovery_enabled: 1,
+            discovery_model: 'search',
+            discovery_topics: '["GIS"]',
+            allowed_domains: '[]',
+            blocked_domains: '[]',
+            run_hour_utc: 1,
+            author: 'AI',
+            default_image_url: '/image.jpg'
+          }]
+        };
+        if (sql.includes('SELECT site_name_prefix')) return { rows: [] };
+        if (sql.includes('SELECT name FROM categories')) return { rows: [] };
+        return { rows: [], rowCount: 1 };
+      })
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      choices: [{ message: { content: '{"results":[]}' } }]
+    }), { status: 200 })));
+
+    const result = await createAutomation({ db }).run();
+    expect(result).toMatchObject({
+      status: 'skipped',
+      reason: 'no-new-source',
+      diagnostics: { discoveryFound: 0, candidates: 0, failed: 0 }
+    });
   });
 });

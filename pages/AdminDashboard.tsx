@@ -79,7 +79,24 @@ const AdminDashboard: React.FC = () => {
         alert(`Đã đăng bài AI: ${data.title}`);
         await loadPosts();
       } else {
-        alert(data.reason === 'no-new-source' ? 'Không tìm thấy nguồn mới chưa được xử lý.' : 'Một lượt tạo bài đang chạy.');
+        if (data.reason === 'no-new-source' && data.diagnostics) {
+          const diagnostics = data.diagnostics;
+          const lines = [
+            'Không tạo được bài mới.',
+            `Search tìm thấy: ${diagnostics.discoveryFound || 0}`,
+            `Bị lọc bởi domain: ${diagnostics.discoveryRejected || 0}`,
+            `Bài từ RSS: ${diagnostics.rssItems || 0}`,
+            `Link từ website: ${diagnostics.websiteLinks || 0}`,
+            `Tổng URL ứng viên: ${diagnostics.candidates || 0}`,
+            `Đã xử lý trước đó: ${diagnostics.alreadyProcessed || 0}`,
+            `Trùng nội dung: ${diagnostics.duplicates || 0}`,
+            `Crawl/AI thất bại: ${diagnostics.failed || 0}`,
+          ];
+          if (diagnostics.errors?.length) lines.push('', 'Lỗi gần nhất:', ...diagnostics.errors);
+          alert(lines.join('\n'));
+        } else {
+          alert('Một lượt tạo bài đang chạy.');
+        }
       }
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Không thể tạo bài viết AI');
