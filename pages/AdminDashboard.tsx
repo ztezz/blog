@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from '../utils/router';
-import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send } from 'lucide-react';
-import { API_URL, getPosts, deletePost, getCurrentUser, getAutomationStatus, logout, isAuthenticated, runAutomation } from '../utils/storage';
+import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send, ClipboardCheck, ExternalLink } from 'lucide-react';
+import { API_URL, approveDraftPost, getPosts, deletePost, getCurrentUser, getAutomationStatus, getDraftPosts, logout, isAuthenticated, rejectDraftPost, runAutomation } from '../utils/storage';
 import { AutomationStatus, BlogPost } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const [posts, setPosts] = useState<BlogPost[]>([]);
+  const [drafts, setDrafts] = useState<BlogPost[]>([]);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showAiControl, setShowAiControl] = useState(false);
@@ -19,7 +20,7 @@ const AdminDashboard: React.FC = () => {
       navigate('/admin');
       return;
     }
-    loadPosts();
+    void Promise.all([loadPosts(), loadDrafts()]);
   }, [navigate]);
 
   useEffect(() => {
@@ -89,6 +90,21 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const loadDrafts = async () => {
+    try { setDrafts(await getDraftPosts()); } catch { setDrafts([]); }
+  };
+
+  const handleDraftAction = async (id: string, action: 'approve' | 'reject') => {
+    setAutomationError('');
+    try {
+      if (action === 'approve') await approveDraftPost(id);
+      else await rejectDraftPost(id);
+      await Promise.all([loadPosts(), loadDrafts()]);
+    } catch (error) {
+      setAutomationError(error instanceof Error ? error.message : 'Không thể cập nhật bản nháp');
+    }
+  };
+
   const openAiControl = async () => {
     setShowAiControl(true);
     setAutomationError('');
@@ -107,9 +123,8 @@ const AdminDashboard: React.FC = () => {
     try {
       const result = await runAutomation();
       setAutomationStatus(await getAutomationStatus());
-      if (result.status === 'published') {
-        await loadPosts();
-      }
+      if (result.status === 'published') await loadPosts();
+      if (result.status === 'draft') await loadDrafts();
     } catch (error) {
       setAutomationError(error instanceof Error ? error.message : 'Không thể tạo bài viết AI');
       try {
@@ -197,7 +212,7 @@ const AdminDashboard: React.FC = () => {
                 <div className="rounded-xl bg-purple-600 p-2.5 text-white shadow-lg shadow-purple-500/20"><Sparkles size={22} /></div>
                 <div>
                   <h2 id="ai-control-title" className="text-xl font-bold text-slate-900 dark:text-white">Trung tâm tạo bài AI</h2>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-gray-300">Theo dõi từ lúc tìm nguồn đến khi 9Router hoàn tất và đăng bài.</p>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-gray-300">Theo dõi từ lúc tìm nguồn đến khi 9Router lưu bản nháp hoặc đăng bài.</p>
                 </div>
               </div>
               <button type="button" onClick={() => setShowAiControl(false)} disabled={isGenerating} className="rounded-lg p-2 text-slate-500 transition hover:bg-black/5 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-white" aria-label="Đóng bảng điều khiển AI"><X size={20} /></button>
@@ -207,8 +222,8 @@ const AdminDashboard: React.FC = () => {
               {!isGenerating && automationStatus?.progress?.stage !== 'completed' && automationStatus?.progress?.stage !== 'failed' && !automationError && (
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="font-bold text-slate-900 dark:text-white">Sẵn sàng tạo và đăng một bài viết mới</p>
-                    <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">Hệ thống sẽ tìm nguồn mới, kiểm tra trùng lặp, gửi nội dung qua 9Router và tự đăng bài.</p>
+                    <p className="font-bold text-slate-900 dark:text-white">Sẵn sàng tạo một bài viết mới</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">Hệ thống sẽ tìm nguồn, kiểm tra trùng, tạo bài, chấm chất lượng và áp dụng chế độ kiểm duyệt.</p>
                   </div>
                   <button type="button" onClick={handleGeneratePost} className="inline-flex shrink-0 items-center justify-center rounded-xl bg-purple-600 px-5 py-3 font-bold text-white shadow-lg shadow-purple-600/20 transition hover:bg-purple-700"><Sparkles className="mr-2" size={18} /> Bắt đầu tạo bài</button>
                 </div>
@@ -253,6 +268,7 @@ const AdminDashboard: React.FC = () => {
                     </div>
 
                     {automationStatus?.lastResult?.status === 'published' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"><CheckCircle2 className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đăng bài thành công</p><p className="mt-1 text-sm">{automationStatus.lastResult.title}</p></div></div>}
+                    {automationStatus?.lastResult?.status === 'draft' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-sky-300 bg-sky-50 p-4 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"><ClipboardCheck className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đã lưu bản nháp chờ duyệt</p><p className="mt-1 text-sm">{automationStatus.lastResult.title} · Điểm chất lượng {automationStatus.lastResult.qualityScore ?? 0}/100</p></div></div>}
                     {automationStatus?.lastResult?.status === 'skipped' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><AlertCircle className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Chưa tạo được bài mới</p><p className="mt-1 text-sm">Đã kiểm tra các nguồn nhưng không có nội dung mới phù hợp.</p></div></div>}
                     {!isGenerating && <div className="flex justify-end"><button type="button" onClick={handleGeneratePost} className="inline-flex items-center rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-purple-700"><Sparkles className="mr-2" size={17} /> Chạy lượt mới</button></div>}
                   </div>
@@ -260,6 +276,38 @@ const AdminDashboard: React.FC = () => {
               })()}
 
               {automationError && <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200" role="alert"><AlertCircle className="mt-0.5 shrink-0" size={21} /><div className="min-w-0"><p className="font-bold">Không thể hoàn tất lượt tạo bài</p><p className="mt-1 whitespace-pre-wrap break-words text-sm">{automationError}</p></div></div>}
+            </div>
+          </section>
+        )}
+
+        {drafts.length > 0 && (
+          <section className="mb-8 overflow-hidden rounded-2xl border border-sky-200 bg-white shadow-lg dark:border-sky-500/20 dark:bg-slate-800" aria-labelledby="draft-review-title">
+            <div className="border-b border-slate-200 p-5 dark:border-white/10">
+              <h2 id="draft-review-title" className="flex items-center text-xl font-bold text-slate-900 dark:text-white"><ClipboardCheck className="mr-2 text-sky-600" size={22} /> Bài AI chờ duyệt</h2>
+              <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">{drafts.length} bản nháp chưa được công khai</p>
+            </div>
+            <div className="divide-y divide-slate-100 dark:divide-white/5">
+              {drafts.map(draft => (
+                <article key={draft.id} className="grid gap-4 p-5 lg:grid-cols-[120px_1fr_auto] lg:items-center">
+                  <img src={draft.imageUrl} alt="" className="h-24 w-full rounded-lg object-cover lg:w-28" />
+                  <div className="min-w-0">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${(draft.qualityScore || 0) >= 80 ? 'bg-emerald-100 text-emerald-700' : (draft.qualityScore || 0) >= 65 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{draft.qualityScore ?? 0}/100</span>
+                      <span className="text-xs text-slate-500">{draft.category}</span>
+                    </div>
+                    <h3 className="truncate font-bold text-slate-900 dark:text-white">{draft.title}</h3>
+                    <p className="mt-1 line-clamp-2 text-sm text-slate-500 dark:text-gray-400">{draft.excerpt}</p>
+                    {draft.sourceUrl && <a href={draft.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center text-xs text-sky-600 hover:underline">Xem nguồn <ExternalLink className="ml-1" size={12} /></a>}
+                  </div>
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <Link to={`/admin/edit/${draft.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 dark:border-white/20 dark:text-gray-200 dark:hover:bg-white/10">Sửa & xem</Link>
+                    {getCurrentUser()?.role === 'admin' && <>
+                      <button type="button" onClick={() => handleDraftAction(draft.id, 'approve')} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700">Duyệt đăng</button>
+                      <button type="button" onClick={() => handleDraftAction(draft.id, 'reject')} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-bold text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10">Từ chối</button>
+                    </>}
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         )}

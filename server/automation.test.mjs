@@ -73,7 +73,7 @@ describe('content automation helpers', () => {
     expect(readingTime('<p>short article</p>')).toBe('1 phút');
   });
 
-  it('publishes one sanitized AI article and records its source', async () => {
+  it('creates one sanitized AI draft with a quality score and records its source', async () => {
     const uploadDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cosmogis-images-'));
     temporaryDirectories.push(uploadDir);
     const queries = [];
@@ -141,7 +141,8 @@ describe('content automation helpers', () => {
     const result = await service.run();
     const postInsert = queries.find(query => query.sql.includes('INSERT INTO posts'));
 
-    expect(result.status).toBe('published');
+    expect(result.status).toBe('draft');
+    expect(result.qualityScore).toBeGreaterThan(0);
     const status = await service.status();
     expect(status.running).toBe(false);
     expect(status.progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 1, processedCandidates: 1 });
@@ -152,9 +153,11 @@ describe('content automation helpers', () => {
     expect(postInsert.params[3]).not.toContain('<script');
     expect(postInsert.params[4]).toBe('Database Author');
     expect(postInsert.params[8]).toMatch(/^https:\/\/api\.cosmogis\.test\/api\/uploads\/ai-.+\.jpg$/);
+    expect(postInsert.params[10]).toBe('draft');
+    expect(postInsert.params[11]).toBe(result.qualityScore);
     expect(await fs.readdir(uploadDir)).toHaveLength(2);
     expect(fetch).toHaveBeenCalledWith('http://9router.test/v1/chat/completions', expect.anything());
-    expect(queries.some(query => query.sql.includes("status='published'"))).toBe(true);
+    expect(queries.some(query => query.sql.includes("SET status=$1") && query.params[0] === 'draft')).toBe(true);
   });
 
   it('returns diagnostics when topic discovery finds no source', async () => {
@@ -195,4 +198,5 @@ describe('content automation helpers', () => {
     });
     expect((await service.status()).progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 0 });
   });
+
 });

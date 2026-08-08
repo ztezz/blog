@@ -60,7 +60,9 @@ const schemas = {
     blockedDomains: domainList.optional().default([]),
     runHourUtc: z.number().int().min(0).max(23),
     author: z.string().trim().min(1).max(100),
-    defaultImageUrl: optionalMediaUrl
+    defaultImageUrl: optionalMediaUrl,
+    approvalMode: z.enum(['required', 'quality_gate']).optional().default('required'),
+    qualityThreshold: z.number().int().min(50).max(100).optional().default(80)
   }).superRefine((value, context) => {
     if (value.enabled && !value.model) context.addIssue({ code: 'custom', message: 'Model is required when automation is enabled', path: ['model'] });
     if (value.enabled && value.rssFeeds.length + value.websites.length === 0 && !value.discoveryEnabled) context.addIssue({ code: 'custom', message: 'At least one RSS feed, website or topic discovery must be enabled', path: ['rssFeeds'] });
@@ -94,7 +96,8 @@ const schemas = {
     category: id,
     tags: z.array(z.string().trim().min(1).max(50)).max(30),
     imageUrl: optionalMediaUrl,
-    readTime: z.string().trim().max(50)
+    readTime: z.string().trim().max(50),
+    status: z.enum(['draft', 'published', 'rejected']).optional()
   }),
   settings: z.object({
     siteNamePrefix: z.string().trim().max(100),

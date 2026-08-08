@@ -57,7 +57,9 @@ const serializeAutomationSettings = settings => ({
   blockedDomains: parseJsonArray(settings.blocked_domains, true),
   runHourUtc: Number(settings.run_hour_utc ?? 1),
   author: settings.author || 'CosmoGIS AI',
-  defaultImageUrl: settings.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400'
+  defaultImageUrl: settings.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400',
+  approvalMode: settings.approval_mode === 'quality_gate' ? 'quality_gate' : 'required',
+  qualityThreshold: Number(settings.quality_threshold ?? 80)
 });
 
 module.exports = { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings, splitList };

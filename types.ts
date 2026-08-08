@@ -15,6 +15,10 @@ export interface BlogPost {
   tags: string[];
   imageUrl: string;
   readTime: string;
+  status?: 'draft' | 'published' | 'rejected';
+  qualityScore?: number | null;
+  qualityReport?: { checks?: string[]; warnings?: string[] } | null;
+  sourceUrl?: string;
 }
 
 export interface NavItem {
@@ -62,6 +66,8 @@ export interface AutomationSettings {
   runHourUtc: number;
   author: string;
   defaultImageUrl: string;
+  approvalMode: 'required' | 'quality_gate';
+  qualityThreshold: number;
 }
 
 export interface AutomationConnectionResult {
@@ -72,10 +78,11 @@ export interface AutomationConnectionResult {
 }
 
 export interface AutomationRunResult {
-  status: 'published' | 'skipped' | 'failed';
+  status: 'draft' | 'published' | 'skipped' | 'failed';
   completedAt?: string;
   postId?: string;
   title?: string;
+  qualityScore?: number;
   reason?: string;
   error?: string;
   diagnostics?: AutomationDiagnostics;

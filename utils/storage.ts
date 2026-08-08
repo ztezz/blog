@@ -212,6 +212,18 @@ export const saveSettings = async (settings: SiteSettings): Promise<void> => {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 };
 
+export const getAdminPostById = async (id: string): Promise<BlogPost | undefined> => {
+  try {
+    return await fetchApi<BlogPost>(`/admin/posts/${id}`);
+  } catch {
+    return undefined;
+  }
+};
+
+export const getDraftPosts = async (): Promise<BlogPost[]> => fetchApi<BlogPost[]>('/admin/posts?status=draft');
+export const approveDraftPost = async (id: string): Promise<void> => { await fetchApi(`/admin/posts/${id}/approve`, { method: 'POST' }); };
+export const rejectDraftPost = async (id: string): Promise<void> => { await fetchApi(`/admin/posts/${id}/reject`, { method: 'POST' }); };
+
 export const getAutomationSettings = async (): Promise<AutomationSettings> => {
   return fetchApi<AutomationSettings>('/automation/settings');
 };

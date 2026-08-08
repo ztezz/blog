@@ -600,6 +600,23 @@ const SettingsEditor: React.FC = () => {
                     {automationError}
                   </div>
                 )}
+                <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50 p-4 dark:border-purple-500/20 dark:bg-purple-500/10">
+                  <p className="mb-3 text-sm font-bold text-purple-900 dark:text-purple-200">Kiểm duyệt bài AI</p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Chế độ xuất bản</span>
+                      <select value={automationSettings.approvalMode} onChange={event => setAutomationSettings({ ...automationSettings, approvalMode: event.target.value as AutomationSettings['approvalMode'] })} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white">
+                        <option value="required">Luôn lưu bản nháp để duyệt</option>
+                        <option value="quality_gate">Tự đăng khi đạt điểm chất lượng</option>
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Điểm tối thiểu để tự đăng</span>
+                      <input type="number" min="50" max="100" value={automationSettings.qualityThreshold} disabled={automationSettings.approvalMode === 'required'} onChange={event => setAutomationSettings({ ...automationSettings, qualityThreshold: Number(event.target.value) })} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 disabled:opacity-50 dark:border-white/20 dark:bg-slate-900 dark:text-white" />
+                    </label>
+                  </div>
+                  <p className="mt-3 text-xs text-purple-700 dark:text-purple-300">Khuyến nghị dùng chế độ bản nháp. Điểm được tính từ nội dung, cấu trúc, tags, ảnh và nguồn tham khảo.</p>
+                </div>
                 <label className="flex items-center gap-3 mb-6 text-slate-700 dark:text-gray-200">
                   <input type="checkbox" checked={automationSettings.enabled} onChange={event => setAutomationSettings({ ...automationSettings, enabled: event.target.checked })} />
                   Bật lịch tạo và đăng một bài mỗi ngày

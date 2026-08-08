@@ -277,7 +277,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     blockedDomains: [],
     runHourUtc: Number(env.AI_RUN_HOUR_UTC || 1),
     author: env.AI_AUTHOR || 'CosmoGIS AI',
-    defaultImageUrl: env.AI_DEFAULT_IMAGE_URL || 'https://picsum.photos/seed/cosmogis-ai/800/400'
+    defaultImageUrl: env.AI_DEFAULT_IMAGE_URL || 'https://picsum.photos/seed/cosmogis-ai/800/400',
+    approvalMode: 'required',
+    qualityThreshold: 80
   };
 
   const loadConfig = async () => {
@@ -301,7 +303,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
       blockedDomains: parseJsonArray(row.blocked_domains, true),
       runHourUtc: Number(row.run_hour_utc),
       author: row.author || 'CosmoGIS AI',
-      defaultImageUrl: row.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400'
+      defaultImageUrl: row.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400',
+      approvalMode: row.approval_mode === 'quality_gate' ? 'quality_gate' : 'required',
+      qualityThreshold: Number(row.quality_threshold ?? 80)
     };
   };
 
@@ -383,7 +387,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     const result = await db.query(
       `INSERT INTO ai_generation_log (source_url, status, claimed_at) VALUES ($1, 'processing', CURRENT_TIMESTAMP)
        ON CONFLICT(source_url) DO UPDATE SET status='processing', claimed_at=CURRENT_TIMESTAMP, error=NULL
-       WHERE ai_generation_log.status != 'published'
+       WHERE ai_generation_log.status NOT IN ('published', 'draft')
          AND (ai_generation_log.status != 'processing' OR ai_generation_log.claimed_at <= datetime('now', '-1 hour'))`,
       [candidate.url]
     );
@@ -455,6 +459,22 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     return stored;
   };
 
+  const evaluateQuality = ({ generated, content, storedImages, sourceUrl }) => {
+    const checks = [];
+    const warnings = [];
+    let score = 0;
+    if (generated.title.length >= 30 && generated.title.length <= 100) { score += 15; checks.push('Tiêu đề có độ dài phù hợp'); } else warnings.push('Tiêu đề nên dài từ 30 đến 100 ký tự');
+    if (generated.excerpt.length >= 80 && generated.excerpt.length <= 250) { score += 15; checks.push('Mô tả ngắn đầy đủ'); } else warnings.push('Mô tả ngắn chưa đạt độ dài khuyến nghị');
+    const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (plainText.length >= 1200) { score += 25; checks.push('Nội dung đủ chi tiết'); } else if (plainText.length >= 700) { score += 15; warnings.push('Nội dung có thể viết chi tiết hơn'); } else warnings.push('Nội dung còn ngắn');
+    const headingCount = (content.match(/<h[23]\b/gi) || []).length;
+    if (headingCount >= 2) { score += 15; checks.push('Bài viết có cấu trúc tiêu đề rõ ràng'); } else warnings.push('Bài viết cần thêm tiêu đề mục');
+    if (generated.tags.length >= 3) { score += 10; checks.push('Có tags phục vụ phân loại'); } else warnings.push('Nên bổ sung thêm tags');
+    if (storedImages.length >= 2) { score += 10; checks.push('Có nhiều ảnh minh họa từ nguồn'); } else if (storedImages.length === 1) { score += 6; checks.push('Có ảnh đại diện từ nguồn'); } else warnings.push('Không tải được ảnh từ nguồn');
+    if (sourceUrl) { score += 10; checks.push('Có nguồn tham khảo'); }
+    return { score: Math.min(score, 100), checks, warnings };
+  };
+
   const run = async () => {
     if (running) return { status: 'skipped', reason: 'already-running' };
     running = true;
@@ -500,7 +520,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           const categories = categoryRows.rows;
           updateProgress('writing', 'Đã đọc nguồn. 9Router đang biên tập bài viết...', 70, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           const generated = await callAi(config, article, categories);
-          updateProgress('publishing', 'Đã nhận nội dung từ 9Router. Đang kiểm tra và đăng bài...', 90, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
+          updateProgress('publishing', 'Đã nhận nội dung từ 9Router. Đang chấm chất lượng và lưu bài...', 90, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           const validCategory = categories.some(category => category.id === generated.category) ? generated.category : categories[0]?.id || 'space-tech';
           const galleryImages = storedImages.slice(1, 4);
           const imageGallery = galleryImages.length > 0
@@ -512,16 +532,18 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
             allowedAttributes: { a: ['href', 'target', 'rel'], img: ['src', 'alt', 'loading'] },
             allowedSchemes: ['http', 'https']
           });
+          const quality = evaluateQuality({ generated, content, storedImages, sourceUrl: candidate.url });
+          const postStatus = config.approvalMode === 'quality_gate' && quality.score >= config.qualityThreshold ? 'published' : 'draft';
           const hash = createHash('sha256').update(candidate.url).digest('hex').slice(0, 16);
           const postId = `ai-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${hash}`.slice(0, 50);
           await db.query(
-            `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-            [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), storedImages[0]?.url || config.defaultImageUrl, readingTime(content)]
+            `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time, status, quality_score, quality_report, source_url)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+            [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), storedImages[0]?.url || config.defaultImageUrl, readingTime(content), postStatus, quality.score, JSON.stringify(quality), candidate.url]
           );
-          await db.query("UPDATE ai_generation_log SET status='published', post_id=$1, published_at=CURRENT_TIMESTAMP WHERE source_url=$2", [postId, candidate.url]);
-          lastResult = { status: 'published', postId, sourceUrl: candidate.url, title: generated.title, completedAt: new Date().toISOString() };
-          updateProgress('completed', 'Đã đăng bài viết thành công.', 100, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
+          await db.query("UPDATE ai_generation_log SET status=$1, post_id=$2, published_at=CASE WHEN $1='published' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE source_url=$3", [postStatus, postId, candidate.url]);
+          lastResult = { status: postStatus, postId, sourceUrl: candidate.url, title: generated.title, qualityScore: quality.score, completedAt: new Date().toISOString() };
+          updateProgress('completed', postStatus === 'published' ? 'Đã đăng bài viết thành công.' : `Đã lưu bản nháp với điểm chất lượng ${quality.score}/100.`, 100, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           return lastResult;
         } catch (error) {
           diagnostics.failed += 1;

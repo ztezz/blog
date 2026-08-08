@@ -253,6 +253,20 @@ const initDb = async () => {
         name VARCHAR(255) NOT NULL
       );
     `);
+    const postColumns = await db.query('PRAGMA table_info(posts)');
+    const postMigrations = [
+      ['status', "TEXT NOT NULL DEFAULT 'published'"],
+      ['quality_score', 'INTEGER'],
+      ['quality_report', 'TEXT'],
+      ['source_url', 'TEXT'],
+      ['reviewed_at', 'TIMESTAMP'],
+      ['reviewed_by', 'VARCHAR(50)']
+    ];
+    for (const [column, definition] of postMigrations) {
+      if (!postColumns.rows.some(existing => existing.name === column)) {
+        await db.query(`ALTER TABLE posts ADD COLUMN ${column} ${definition}`);
+      }
+    }
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS ai_generation_log (
@@ -309,6 +323,8 @@ const initDb = async () => {
       ['run_hour_utc', 'INTEGER NOT NULL DEFAULT 1'],
       ['author', "VARCHAR(100) NOT NULL DEFAULT 'CosmoGIS AI'"],
       ['default_image_url', "TEXT NOT NULL DEFAULT 'https://picsum.photos/seed/cosmogis-ai/800/400'"],
+      ['approval_mode', "TEXT NOT NULL DEFAULT 'required'"],
+      ['quality_threshold', 'INTEGER NOT NULL DEFAULT 80'],
       ['updated_at', 'TIMESTAMP']
     ];
     for (const [column, definition] of settingsMigrations) {
@@ -467,9 +483,9 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
        model=$5, rss_feeds=$6, website_urls=$7,
        discovery_enabled=$8, discovery_provider=$9, discovery_model=$10, discovery_topics=$11,
        allowed_domains=$12, blocked_domains=$13, run_hour_utc=$14,
-       author=$15, default_image_url=$16, updated_at=CURRENT_TIMESTAMP
+       author=$15, default_image_url=$16, approval_mode=$17, quality_threshold=$18, updated_at=CURRENT_TIMESTAMP
        WHERE id=1`,
-      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl]
+      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold]
     );
     await automation.reschedule();
     const saved = await ensureAutomationSettings(db);
@@ -626,7 +642,7 @@ app.delete('/api/categories/:id', authenticate, authorize('admin'), validatePara
 // 3. Posts
 app.get('/api/posts', async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM posts ORDER BY created_at DESC');
+    const result = await db.query("SELECT * FROM posts WHERE status='published' ORDER BY created_at DESC");
     const posts = result.rows.map(p => ({
       id: p.id,
       title: p.title,
@@ -648,7 +664,7 @@ app.get('/api/posts', async (req, res) => {
 
 app.get('/api/posts/:id', validateParams(schemas.idParam), async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM posts WHERE id = $1', [req.params.id]);
+    const result = await db.query("SELECT * FROM posts WHERE id = $1 AND status='published'", [req.params.id]);
     if (result.rows.length > 0) {
       const p = result.rows[0];
       res.json({
@@ -672,19 +688,81 @@ app.get('/api/posts/:id', validateParams(schemas.idParam), async (req, res) => {
   }
 });
 
+app.get('/api/admin/posts', authenticate, authorize('admin', 'editor'), async (req, res) => {
+  try {
+    const status = ['draft', 'published', 'rejected'].includes(req.query.status) ? req.query.status : 'draft';
+    const result = await db.query('SELECT * FROM posts WHERE status=$1 ORDER BY created_at DESC LIMIT 100', [status]);
+    return res.json(result.rows.map(p => ({
+      id: p.id,
+      title: p.title,
+      excerpt: p.excerpt,
+      content: p.content,
+      author: p.author,
+      date: p.date,
+      category: p.category,
+      tags: JSON.parse(p.tags || '[]'),
+      imageUrl: fixUrl(p.image_url),
+      readTime: p.read_time,
+      status: p.status,
+      qualityScore: p.quality_score,
+      qualityReport: p.quality_report ? JSON.parse(p.quality_report) : null,
+      sourceUrl: p.source_url
+    })));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Unable to load admin posts' });
+  }
+});
+
+app.get('/api/admin/posts/:id', authenticate, authorize('admin', 'editor'), validateParams(schemas.idParam), async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM posts WHERE id=$1', [req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Post not found' });
+    const p = result.rows[0];
+    return res.json({ id: p.id, title: p.title, excerpt: p.excerpt, content: p.content, author: p.author, date: p.date, category: p.category, tags: JSON.parse(p.tags || '[]'), imageUrl: fixUrl(p.image_url), readTime: p.read_time, status: p.status, qualityScore: p.quality_score, qualityReport: p.quality_report ? JSON.parse(p.quality_report) : null, sourceUrl: p.source_url });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Unable to load admin post' });
+  }
+});
+
+app.post('/api/admin/posts/:id/approve', authenticate, authorize('admin'), validateParams(schemas.idParam), async (req, res) => {
+  try {
+    const result = await db.query("UPDATE posts SET status='published', reviewed_at=CURRENT_TIMESTAMP, reviewed_by=$1 WHERE id=$2 AND status='draft'", [req.user.sub, req.params.id]);
+    if (result.rowCount === 0) return res.status(409).json({ error: 'Only draft posts can be approved' });
+    await db.query("UPDATE ai_generation_log SET status='published', published_at=CURRENT_TIMESTAMP WHERE post_id=$1", [req.params.id]);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Unable to approve post' });
+  }
+});
+
+app.post('/api/admin/posts/:id/reject', authenticate, authorize('admin'), validateParams(schemas.idParam), async (req, res) => {
+  try {
+    const result = await db.query("UPDATE posts SET status='rejected', reviewed_at=CURRENT_TIMESTAMP, reviewed_by=$1 WHERE id=$2 AND status='draft'", [req.user.sub, req.params.id]);
+    if (result.rowCount === 0) return res.status(409).json({ error: 'Only draft posts can be rejected' });
+    await db.query("UPDATE ai_generation_log SET status='rejected' WHERE post_id=$1", [req.params.id]);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Unable to reject post' });
+  }
+});
+
 app.post('/api/posts', authenticate, authorize('admin', 'editor'), validateBody(schemas.post), async (req, res) => {
   const p = req.body;
   try {
     const check = await db.query('SELECT id FROM posts WHERE id = $1', [p.id]);
     if (check.rows.length > 0) {
       await db.query(
-        `UPDATE posts SET title=$1, excerpt=$2, content=$3, author=$4, date=$5, category=$6, tags=$7, image_url=$8, read_time=$9 WHERE id=$10`,
-        [p.title, p.excerpt, p.content, p.author, p.date, p.category, JSON.stringify(p.tags), p.imageUrl, p.readTime, p.id]
+        `UPDATE posts SET title=$1, excerpt=$2, content=$3, author=$4, date=$5, category=$6, tags=$7, image_url=$8, read_time=$9, status=COALESCE($10, status) WHERE id=$11`,
+        [p.title, p.excerpt, p.content, p.author, p.date, p.category, JSON.stringify(p.tags), p.imageUrl, p.readTime, p.status, p.id]
       );
     } else {
       await db.query(
-        `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [p.id, p.title, p.excerpt, p.content, p.author, p.date, p.category, JSON.stringify(p.tags), p.imageUrl, p.readTime]
+        `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [p.id, p.title, p.excerpt, p.content, p.author, p.date, p.category, JSON.stringify(p.tags), p.imageUrl, p.readTime, p.status || 'published']
       );
     }
     res.json({ success: true });

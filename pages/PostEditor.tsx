@@ -8,7 +8,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Palette, Highlighter, Scaling
 } from 'lucide-react';
-import { getPostById, savePost, isAuthenticated, calculateReadTime, uploadImage, getCategories } from '../utils/storage';
+import { getAdminPostById, savePost, isAuthenticated, calculateReadTime, uploadImage, getCategories } from '../utils/storage';
 import { BlogPost, Category } from '../types';
 
 const PostEditor: React.FC = () => {
@@ -60,7 +60,7 @@ const PostEditor: React.FC = () => {
     const loadPost = async () => {
       if (id) {
         setLoading(true);
-        const existing = await getPostById(id);
+        const existing = await getAdminPostById(id);
         if (existing) {
           setFormData(existing);
           setTagInput(existing.tags.join(', '));
