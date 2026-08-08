@@ -11,7 +11,6 @@ const AdminDashboard: React.FC = () => {
   const [isRestoring, setIsRestoring] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showAiControl, setShowAiControl] = useState(false);
-  const [customPrompt, setCustomPrompt] = useState('');
   const [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(null);
   const [automationError, setAutomationError] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
@@ -145,7 +144,7 @@ const AdminDashboard: React.FC = () => {
     setAutomationError('');
     let backgroundRunStarted = false;
     try {
-      const result = await runAutomation({ customPrompt: customPrompt.trim() || undefined });
+      const result = await runAutomation();
       backgroundRunStarted = result.status === 'started';
       const status = await getAutomationStatus();
       setAutomationStatus(status);
@@ -272,23 +271,6 @@ const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="p-5 sm:p-6">
-              {!isGenerating && (
-                <label className="mb-5 block">
-                  <span className="mb-2 flex items-center justify-between gap-3 text-sm font-bold text-slate-800 dark:text-slate-100">
-                    <span>Prompt cho lượt này <span className="font-normal text-slate-400">(không bắt buộc)</span></span>
-                    <span className="font-mono text-xs font-normal text-slate-400">{customPrompt.length}/4000</span>
-                  </span>
-                  <textarea
-                    value={customPrompt}
-                    onChange={event => setCustomPrompt(event.target.value)}
-                    maxLength={4000}
-                    rows={4}
-                    className="w-full resize-y rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-500/15 dark:border-white/15 dark:bg-slate-950 dark:text-white"
-                    placeholder="Ví dụ: Viết bài phân tích chuyên sâu về ứng dụng GIS trong quản lý thiên tai tại Việt Nam..."
-                  />
-                  <span className="mt-2 block text-xs leading-5 text-slate-500 dark:text-slate-400">Nhập yêu cầu riêng để định hướng bài viết. Nếu để trống, hệ thống tự động tạo bài theo cấu hình đã lưu.</span>
-                </label>
-              )}
               {!isGenerating && automationStatus?.progress?.stage !== 'completed' && automationStatus?.progress?.stage !== 'failed' && !automationError && (
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
