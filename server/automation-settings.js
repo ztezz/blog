@@ -71,6 +71,9 @@ const serializeAutomationSettings = settings => ({
   ,editorialPrompt: settings.editorial_prompt || ''
   ,requiredKeywords: parseJsonArray(settings.required_keywords, true)
   ,blockedKeywords: parseJsonArray(settings.blocked_keywords, true)
+  ,maxSources: Number(settings.max_sources ?? 3)
+  ,maxModelCalls: Number(settings.max_model_calls ?? 10)
+  ,maxDurationSeconds: Number(settings.max_duration_seconds ?? 600)
 });
 
 module.exports = { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings, splitList };

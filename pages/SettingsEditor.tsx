@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from '../utils/router';
 import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft, Sparkles, CheckCircle2, AlertCircle, X, PlugZap, LoaderCircle } from 'lucide-react';
 import { getAutomationSettings, saveAutomationSettings, saveSettings, isAuthenticated, testAutomationConnection, uploadImage } from '../utils/storage';
-import { AutomationSettings, SiteSettings, NavItem } from '../types';
+import { AutomationConnectionResult, AutomationSettings, SiteSettings, NavItem } from '../types';
 import { DEFAULT_ABOUT_CONTENT, DEFAULT_CONTACT_CONTENT } from '../constants';
 import { useSiteSettings } from '../components/Layout';
 
@@ -36,7 +36,8 @@ const SettingsEditor: React.FC = () => {
   const [automationError, setAutomationError] = useState('');
   const [automationSaveStatus, setAutomationSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionResult, setConnectionResult] = useState<{ type: 'success' | 'warning' | 'error', message: string } | null>(null);
+  const [connectionResult, setConnectionResult] = useState<AutomationConnectionResult | null>(null);
+  const [connectionError, setConnectionError] = useState('');
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
   
@@ -57,7 +58,7 @@ const SettingsEditor: React.FC = () => {
       contactContent: current.contactContent || DEFAULT_CONTACT_CONTENT
     } : current);
     getAutomationSettings().then(loadedSettings => {
-      setAutomationSettings(loadedSettings);
+      setAutomationSettings({ ...loadedSettings, maxSources: loadedSettings.maxSources ?? 3, maxModelCalls: loadedSettings.maxModelCalls ?? 10, maxDurationSeconds: loadedSettings.maxDurationSeconds ?? 600 });
       setRssFeedsText(loadedSettings.rssFeeds.join('\n'));
       setWebsitesText(loadedSettings.websites.join('\n'));
       setDiscoveryTopicsText(loadedSettings.discoveryTopics.join('\n'));
@@ -315,20 +316,16 @@ const SettingsEditor: React.FC = () => {
     if (!automationSettings) return;
     setTestingConnection(true);
     setConnectionResult(null);
+    setConnectionError('');
     try {
       const result = await testAutomationConnection({
         baseUrl: automationSettings.baseUrl,
         apiKey: automationSettings.apiKey,
         model: automationSettings.model
       });
-      const details = `${result.latencyMs} ms, tìm thấy ${result.modelCount} model`;
-      if (result.modelAvailable === false) {
-        setConnectionResult({ type: 'warning', message: `Đã kết nối 9Router (${details}), nhưng không tìm thấy model "${automationSettings.model}".` });
-      } else {
-        setConnectionResult({ type: 'success', message: `Kết nối 9Router thành công (${details}).` });
-      }
+      setConnectionResult(result);
     } catch (error) {
-      setConnectionResult({ type: 'error', message: error instanceof Error ? error.message : 'Không thể kết nối 9Router' });
+      setConnectionError(error instanceof Error ? error.message : 'Không thể kết nối 9Router');
     } finally {
       setTestingConnection(false);
     }
@@ -660,6 +657,15 @@ const SettingsEditor: React.FC = () => {
                     <textarea rows={3} value={fallbackModelsText} onChange={event => setFallbackModelsText(event.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'fallback-combo-1\nfallback-model-2'} />
                     <p className="mt-1 text-xs text-slate-500">Chỉ chuyển model khi timeout, rate limit, lỗi máy chủ hoặc phản hồi không hợp lệ.</p>
                   </div>
+                  <div className="md:col-span-2 rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-500/20 dark:bg-indigo-500/10">
+                    <p className="text-sm font-bold text-indigo-900 dark:text-indigo-200">Ngân sách an toàn mỗi lượt</p>
+                    <p className="mt-1 text-xs text-indigo-700 dark:text-indigo-300">Lượt chạy tự dừng khi chạm một giới hạn, tránh lặp nguồn hoặc tiêu tốn gateway ngoài kiểm soát.</p>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                      <label><span className="mb-2 block text-sm text-slate-600 dark:text-slate-300">Nguồn tối đa</span><input type="number" min="1" max="50" value={automationSettings.maxSources} onChange={event => setAutomationSettings({ ...automationSettings, maxSources: Number(event.target.value) })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></label>
+                      <label><span className="mb-2 block text-sm text-slate-600 dark:text-slate-300">Lượt gọi model tối đa</span><input type="number" min="1" max="100" value={automationSettings.maxModelCalls} onChange={event => setAutomationSettings({ ...automationSettings, maxModelCalls: Number(event.target.value) })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></label>
+                      <label><span className="mb-2 block text-sm text-slate-600 dark:text-slate-300">Thời gian tối đa (phút)</span><input type="number" min="1" max="1440" value={Math.round(automationSettings.maxDurationSeconds / 60)} onChange={event => setAutomationSettings({ ...automationSettings, maxDurationSeconds: Number(event.target.value) * 60 })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></label>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Giờ chạy UTC (0-23)</label>
                     <input type="number" min="0" max="23" value={automationSettings.runHourUtc} onChange={event => setAutomationSettings({ ...automationSettings, runHourUtc: Number(event.target.value) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
@@ -680,12 +686,11 @@ const SettingsEditor: React.FC = () => {
                         {testingConnection ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}
                       </button>
                     </div>
-                    {connectionResult && (
-                      <div className={`mt-4 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${connectionResult.type === 'success' ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300' : connectionResult.type === 'warning' ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300' : 'border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300'}`} role="status" aria-live="polite">
-                        {connectionResult.type === 'success' ? <CheckCircle2 className="mt-0.5 shrink-0" size={17} /> : <AlertCircle className="mt-0.5 shrink-0" size={17} />}
-                        <span>{connectionResult.message}</span>
-                      </div>
-                    )}
+                    {connectionError && <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300" role="alert"><AlertCircle className="mt-0.5 shrink-0" size={17} /><span>{connectionError}</span></div>}
+                    {connectionResult && <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="status" aria-live="polite">
+                      {[['API', `${connectionResult.latencyMs} ms`, true], ['Model', connectionResult.modelAvailable === false ? 'Không tìm thấy' : 'Sẵn sàng', connectionResult.modelAvailable !== false], ['JSON mode', connectionResult.schemaProbe.responseFormatSupported ? 'Hỗ trợ' : 'Dùng fallback', true], ['Schema', connectionResult.schemaProbe.ok ? 'Đạt' : 'Không đạt', connectionResult.schemaProbe.ok]].map(([label, value, ok]) => <div key={String(label)} className={`rounded-lg border p-3 ${ok ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10' : 'border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10'}`}><p className="text-xs text-slate-500 dark:text-slate-400">{label}</p><p className={`mt-1 text-sm font-bold ${ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>{value}</p></div>)}
+                      {!connectionResult.schemaProbe.ok && <details className="sm:col-span-2 lg:col-span-4"><summary className="cursor-pointer text-xs font-bold text-amber-700 dark:text-amber-300">Chi tiết lỗi schema probe</summary><p className="mt-2 break-words rounded-lg bg-slate-950 p-3 font-mono text-xs text-slate-200">{connectionResult.schemaProbe.error || 'Model không trả {"ok":true}.'}</p></details>}
+                    </div>}
                   </div>
                   <div className="md:col-span-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 p-4 dark:border-fuchsia-500/20 dark:bg-fuchsia-500/10">
                     <label className="flex items-center gap-3 font-bold text-fuchsia-900 dark:text-fuchsia-200">

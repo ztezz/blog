@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from '../utils/router';
 import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send, ClipboardCheck, ExternalLink, Octagon, Activity, BarChart3, BookOpen, ShieldCheck, ArrowUpRight } from 'lucide-react';
-import { API_URL, approveDraftPost, cancelAutomation, getPosts, deletePost, getCurrentUser, getAutomationRuns, getAutomationStatistics, getAutomationStatus, getDraftPosts, logout, isAuthenticated, rejectDraftPost, runAutomation } from '../utils/storage';
+import { API_URL, approveDraftPost, cancelAutomation, getPosts, deletePost, getCurrentUser, getAutomationRuns, getAutomationStatistics, getAutomationStatus, getDraftPosts, logout, isAuthenticated, rejectDraftPost, rerunAutomation, runAutomation } from '../utils/storage';
 import { AutomationRunHistory, AutomationStatistics, AutomationStatus, BlogPost } from '../types';
 
 const AdminDashboard: React.FC = () => {
@@ -16,6 +16,12 @@ const AdminDashboard: React.FC = () => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [automationRuns, setAutomationRuns] = useState<AutomationRunHistory[]>([]);
   const [automationStatistics, setAutomationStatistics] = useState<AutomationStatistics | null>(null);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const [rerunTarget, setRerunTarget] = useState<AutomationRunHistory | null>(null);
+  const [rerunModel, setRerunModel] = useState('');
+  const [rerunWithoutImages, setRerunWithoutImages] = useState(false);
+  const [isRerunning, setIsRerunning] = useState(false);
+  const wasAutomationRunning = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,6 +41,8 @@ const AdminDashboard: React.FC = () => {
         if (active) {
           setAutomationStatus(status);
           setIsGenerating(status.running);
+          if (wasAutomationRunning.current && !status.running) void Promise.all([loadPosts(), loadDrafts(), loadAutomationInsights()]);
+          wasAutomationRunning.current = status.running;
         }
       } catch (error) {
         if (active) setAutomationError(error instanceof Error ? error.message : 'Không thể tải tiến trình AI');
@@ -174,6 +182,26 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleRerun = async () => {
+    if (!rerunTarget) return;
+    setIsRerunning(true);
+    setAutomationError('');
+    try {
+      const result = await rerunAutomation(rerunTarget.id, { modelOverride: rerunModel.trim() || undefined, disableImages: rerunWithoutImages });
+      if (result.status === 'started') {
+        setRerunTarget(null);
+        setShowAiControl(true);
+        setIsGenerating(true);
+        setAutomationStatus(await getAutomationStatus());
+        await loadAutomationInsights();
+      } else setAutomationError(result.reason === 'already-running' ? 'Đang có một lượt AI khác hoạt động.' : 'Không thể khởi chạy lại lượt này.');
+    } catch (error) {
+      setAutomationError(error instanceof Error ? error.message : 'Không thể chạy lại lượt AI');
+    } finally {
+      setIsRerunning(false);
+    }
+  };
+
   const currentUser = getCurrentUser();
   const categoryCount = new Set(posts.map(post => post.category)).size;
   const latestPost = posts[0];
@@ -193,6 +221,9 @@ const AdminDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 px-4 pb-12 pt-8 dark:bg-slate-950 sm:px-6 sm:pt-10 lg:px-8">
       <div className="mx-auto max-w-7xl">
+        {rerunTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm" onMouseDown={() => !isRerunning && setRerunTarget(null)}><div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white p-6 shadow-2xl dark:bg-slate-900" role="dialog" aria-modal="true" aria-labelledby="rerun-title" onMouseDown={event => event.stopPropagation()}><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-300">Rerun · {rerunTarget.id}</p><h2 id="rerun-title" className="mt-2 text-xl font-bold text-slate-900 dark:text-white">Chạy lại nguồn của lượt này</h2><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Backend sẽ tải lại {rerunTarget.sourceUrls.length} URL đã lưu. Bài cũ và generation log không bị ghi đè.</p></div><button type="button" onClick={() => setRerunTarget(null)} disabled={isRerunning} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5" aria-label="Đóng"><X size={19} /></button></div>
+          <div className="mt-6 space-y-4"><label className="block"><span className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-200">Model override</span><input value={rerunModel} onChange={event => setRerunModel(event.target.value)} className="w-full rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-900 dark:border-white/15 dark:bg-slate-950 dark:text-white" placeholder="Để trống để dùng model trong Cài đặt" /></label><label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 dark:border-white/10"><input type="checkbox" checked={rerunWithoutImages} onChange={event => setRerunWithoutImages(event.target.checked)} className="mt-1" /><span><span className="block text-sm font-bold text-slate-800 dark:text-white">Tắt xử lý ảnh trong lượt này</span><span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">Giảm thời gian và lượt gọi model, dùng ảnh mặc định khi lưu bài.</span></span></label></div>
+          <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setRerunTarget(null)} disabled={isRerunning} className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-600 dark:border-white/15 dark:text-slate-300">Hủy</button><button type="button" onClick={handleRerun} disabled={isRerunning || rerunTarget.sourceUrls.length === 0} className="inline-flex items-center rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-purple-700 disabled:opacity-50">{isRerunning ? <LoaderCircle className="mr-2 animate-spin" size={17} /> : <Sparkles className="mr-2" size={17} />}{isRerunning ? 'Đang khởi chạy...' : 'Chạy lại'}</button></div></div></div>}
         <header className="relative mb-6 overflow-hidden rounded-3xl bg-slate-950 px-6 py-8 text-white shadow-2xl shadow-slate-900/15 sm:px-8 lg:px-10 lg:py-10">
           <div className="pointer-events-none absolute -right-20 -top-36 h-96 w-96 rounded-full border border-cyan-300/15" />
           <div className="pointer-events-none absolute -right-4 -top-20 h-64 w-64 rounded-full border border-violet-300/15" />
@@ -363,15 +394,24 @@ const AdminDashboard: React.FC = () => {
             <div className="border-t border-slate-200 dark:border-white/10">
               <div className="flex items-center px-5 py-4"><Activity className="mr-2 text-purple-600" size={18} /><h3 className="font-bold text-slate-900 dark:text-white">10 lượt gần nhất</h3>{automationStatistics.average_duration_seconds !== null && <span className="ml-auto text-xs text-slate-500">Trung bình {Math.round(automationStatistics.average_duration_seconds)} giây/lượt</span>}</div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-900"><tr><th className="px-5 py-3">Thời gian</th><th className="px-5 py-3">Kết quả</th><th className="px-5 py-3">Bài viết</th><th className="px-5 py-3">Model</th><th className="px-5 py-3">Nguồn</th><th className="px-5 py-3">Điểm</th><th className="px-5 py-3">Thời lượng</th></tr></thead>
+                <table className="w-full min-w-[860px] text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-900"><tr><th className="px-5 py-3">Thời gian</th><th className="px-5 py-3">Kết quả</th><th className="px-5 py-3">Bài viết</th><th className="px-5 py-3">Model</th><th className="px-5 py-3">Nguồn</th><th className="px-5 py-3">Điểm</th><th className="px-5 py-3">Thời lượng</th><th className="px-5 py-3 text-right">Chi tiết</th></tr></thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                     {automationRuns.slice(0, 10).map(run => {
                       const duration = run.completedAt ? Math.max(0, Math.round((new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)) : null;
                       const statusColor = run.status === 'published' ? 'text-emerald-600' : run.status === 'draft' ? 'text-sky-600' : run.status === 'failed' ? 'text-red-600' : 'text-amber-600';
-                      return <tr key={run.id}><td className="px-5 py-3 text-slate-500">{new Date(run.startedAt).toLocaleString('vi-VN')}<span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] dark:bg-white/10">{run.triggerType === 'scheduled' ? 'Lịch' : 'Thủ công'}</span></td><td className={`px-5 py-3 font-bold ${statusColor}`}>{run.status}</td><td className="max-w-[220px] truncate px-5 py-3 text-slate-800 dark:text-gray-200" title={run.title || run.error || ''}>{run.title || run.error || '-'}</td><td className="px-5 py-3 font-mono text-xs text-slate-500">{run.model || '-'}{run.attempts > 0 && ` · ${run.attempts} lượt`}</td><td className="px-5 py-3 text-slate-500">{run.sourceCount}</td><td className="px-5 py-3 font-bold text-purple-600">{run.qualityScore ?? '-'}</td><td className="px-5 py-3 text-slate-500">{duration === null ? 'Đang chạy' : `${duration}s`}</td></tr>;
+                      const expanded = expandedRunId === run.id;
+                      return <React.Fragment key={run.id}><tr><td className="px-5 py-3 text-slate-500">{new Date(run.startedAt).toLocaleString('vi-VN')}<span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] dark:bg-white/10">{run.triggerType === 'scheduled' ? 'Lịch' : run.triggerType === 'rerun' ? 'Chạy lại' : 'Thủ công'}</span></td><td className={`px-5 py-3 font-bold ${statusColor}`}>{run.status}</td><td className="max-w-[220px] truncate px-5 py-3 text-slate-800 dark:text-gray-200" title={run.title || run.error || ''}>{run.title || run.error || '-'}</td><td className="px-5 py-3 font-mono text-xs text-slate-500">{run.model || '-'}{run.attempts > 0 && ` · ${run.attempts} lượt`}</td><td className="px-5 py-3 text-slate-500">{run.sourceCount}</td><td className="px-5 py-3 font-bold text-purple-600">{run.qualityScore ?? '-'}</td><td className="px-5 py-3 text-slate-500">{duration === null ? 'Đang chạy' : `${duration}s`}</td><td className="px-5 py-3 text-right"><button type="button" onClick={() => setExpandedRunId(expanded ? null : run.id)} aria-expanded={expanded} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5">{expanded ? 'Thu gọn' : 'Mở'}</button></td></tr>
+                      {expanded && <tr><td colSpan={8} className="bg-slate-50/70 px-5 py-5 dark:bg-slate-950/40"><div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+                        <div><h4 className="font-bold text-slate-900 dark:text-white">Timeline</h4><ol className="mt-4 space-y-0">{run.timeline.length > 0 ? run.timeline.map((event, index) => <li key={`${event.at}-${index}`} className="grid grid-cols-[18px_1fr] gap-3 pb-4"><span className={`mt-1 h-2.5 w-2.5 rounded-full ${event.stage === 'failed' ? 'bg-red-500' : event.stage === 'completed' ? 'bg-emerald-500' : 'bg-purple-500'}`} /><div><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold uppercase text-slate-700 dark:text-slate-200">{event.stage}</span><span className="text-[10px] text-slate-400">{new Date(event.at).toLocaleTimeString('vi-VN')}</span><span className="text-[10px] font-mono text-purple-500">{event.percent}%</span></div><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{event.message}</p></div></li>) : <li className="text-xs text-slate-500">Run cũ chưa có timeline.</li>}</ol></div>
+                        <div className="space-y-4"><div className="grid grid-cols-2 gap-2">{[['Model calls', `${run.modelCalls}/${run.maxModelCalls}`], ['Nguồn thử', `${run.sourcesAttempted}/${run.maxSources}`], ['Deadline', `${Math.round(run.maxDurationSeconds / 60)} phút`], ['Run ID', run.id]].map(([label, value]) => <div key={label} className="rounded-lg border border-slate-200 p-3 dark:border-white/10"><p className="text-[10px] uppercase text-slate-400">{label}</p><p className="mt-1 truncate text-xs font-bold text-slate-800 dark:text-white" title={value}>{value}</p></div>)}</div>
+                        {(run.error || run.errorCode) && <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/20 dark:bg-red-500/10"><p className="text-xs font-bold text-red-700 dark:text-red-300">{run.errorCode || 'AUTOMATION_FAILED'}</p><p className="mt-1 break-words text-xs text-red-700 dark:text-red-200">{run.error}</p>{run.errorDetails && <div className="mt-2 space-y-1 font-mono text-[10px] text-red-600 dark:text-red-300">{Object.entries(run.errorDetails).map(([key, value]) => <p key={key}>{key}: {String(value)}</p>)}</div>}</div>}
+                        {!!run.diagnostics?.errors?.length && <details><summary className="cursor-pointer text-xs font-bold text-amber-700 dark:text-amber-300">Lỗi nguồn ({run.diagnostics.errors.length})</summary><ul className="mt-2 space-y-1 text-xs text-slate-500">{run.diagnostics.errors.slice(0, 10).map((error, index) => <li key={index} className="break-words">{error}</li>)}</ul></details>}
+                        {run.status !== 'running' && <button type="button" onClick={() => { setRerunTarget(run); setRerunModel(run.model || ''); setRerunWithoutImages(false); }} className="w-full rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-purple-700">Chạy lại có kiểm soát</button>}</div>
+                      </div></td></tr>}
+                      </React.Fragment>;
                     })}
-                    {automationRuns.length === 0 && <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-500">Chưa có lịch sử chạy AI.</td></tr>}
+                    {automationRuns.length === 0 && <tr><td colSpan={8} className="px-5 py-8 text-center text-slate-500">Chưa có lịch sử chạy AI.</td></tr>}
                   </tbody>
                 </table>
               </div>

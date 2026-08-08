@@ -101,6 +101,19 @@ export interface AutomationSettings {
   editorialPrompt: string;
   requiredKeywords: string[];
   blockedKeywords: string[];
+  maxSources: number;
+  maxModelCalls: number;
+  maxDurationSeconds: number;
+}
+
+export interface AutomationSchemaProbe {
+  ok: boolean;
+  model: string;
+  status: number;
+  responseFormatSupported: boolean;
+  fallbackUsed: boolean;
+  response?: { ok?: boolean } | null;
+  error?: string | null;
 }
 
 export interface AutomationConnectionResult {
@@ -108,10 +121,29 @@ export interface AutomationConnectionResult {
   latencyMs: number;
   modelCount: number;
   modelAvailable: boolean | null;
+  schemaProbe: AutomationSchemaProbe;
+}
+
+export interface AutomationRunOptions {
+  modelOverride?: string;
+  disableImages?: boolean;
+  reuseSources?: boolean;
+  parentRunId?: string;
+}
+
+export interface AutomationTimelineEvent {
+  stage: AutomationProgress['stage'];
+  message: string;
+  percent: number;
+  at: string;
+}
+
+export interface AutomationErrorDetails {
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export interface AutomationRunResult {
-  status: 'started' | 'draft' | 'published' | 'skipped' | 'failed' | 'cancelled';
+  status: 'started' | 'running' | 'draft' | 'published' | 'skipped' | 'failed' | 'cancelled';
   runId?: string | null;
   startedAt?: string;
   completedAt?: string;
@@ -160,7 +192,7 @@ export interface AutomationStatus {
 
 export interface AutomationRunHistory {
   id: string;
-  triggerType: 'manual' | 'scheduled';
+  triggerType: 'manual' | 'scheduled' | 'rerun';
   status: AutomationRunResult['status'];
   stage: string;
   postId?: string | null;
@@ -170,9 +202,25 @@ export interface AutomationRunHistory {
   qualityScore?: number | null;
   sourceCount: number;
   error?: string | null;
+  errorCode?: string | null;
+  errorDetails?: AutomationErrorDetails | null;
+  diagnostics?: AutomationDiagnostics | null;
+  heartbeatAt?: string | null;
+  timeline: AutomationTimelineEvent[];
+  options: AutomationRunOptions;
+  parentRunId?: string | null;
+  sourceUrls: string[];
+  maxSources: number;
+  maxModelCalls: number;
+  maxDurationSeconds: number;
+  modelCalls: number;
+  sourcesAttempted: number;
+  deadlineAt?: string | null;
   startedAt: string;
   completedAt?: string | null;
 }
+
+export type AutomationRunDetail = AutomationRunHistory;
 
 export interface AutomationStatistics {
   total: number;

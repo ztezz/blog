@@ -52,6 +52,9 @@ describe('automation settings recovery', () => {
       editorial_prompt: 'Giải thích thuật ngữ khi xuất hiện lần đầu.',
       required_keywords: '["dữ liệu không gian"]',
       blocked_keywords: '["cá cược"]'
+      ,max_sources: 5
+      ,max_model_calls: 12
+      ,max_duration_seconds: 900
     })).toMatchObject({
       apiKey: '',
       hasApiKey: true,
@@ -63,7 +66,10 @@ describe('automation settings recovery', () => {
       targetAudience: 'professional',
       editorialPrompt: 'Giải thích thuật ngữ khi xuất hiện lần đầu.',
       requiredKeywords: ['dữ liệu không gian'],
-      blockedKeywords: ['cá cược']
+      blockedKeywords: ['cá cược'],
+      maxSources: 5,
+      maxModelCalls: 12,
+      maxDurationSeconds: 900
     });
   });
 

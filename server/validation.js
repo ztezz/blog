@@ -74,7 +74,10 @@ const schemas = {
     targetAudience: z.enum(['general', 'beginner', 'professional', 'academic']).optional().default('general'),
     editorialPrompt: z.string().trim().max(4000).optional().default(''),
     requiredKeywords: z.array(z.string().trim().min(2).max(100)).max(20).optional().default([]),
-    blockedKeywords: z.array(z.string().trim().min(2).max(100)).max(50).optional().default([])
+    blockedKeywords: z.array(z.string().trim().min(2).max(100)).max(50).optional().default([]),
+    maxSources: z.number().int().min(1).max(50).optional().default(3),
+    maxModelCalls: z.number().int().min(1).max(100).optional().default(10),
+    maxDurationSeconds: z.number().int().min(30).max(86400).optional().default(600)
   }).superRefine((value, context) => {
     if (value.enabled && !value.model) context.addIssue({ code: 'custom', message: 'Model is required when automation is enabled', path: ['model'] });
     if (value.enabled && value.rssFeeds.length + value.websites.length === 0 && !value.discoveryEnabled) context.addIssue({ code: 'custom', message: 'At least one RSS feed, website or topic discovery must be enabled', path: ['rssFeeds'] });
@@ -89,6 +92,12 @@ const schemas = {
     apiKey: z.string().max(1000).optional().default(''),
     model: z.string().trim().max(200).optional().default('')
   }),
+  automationRunOptions: z.object({
+    modelOverride: z.string().trim().min(1).max(200).optional(),
+    disableImages: z.boolean().optional().default(false),
+    reuseSources: z.boolean().optional().default(false),
+    parentRunId: id.optional()
+  }).optional().default({ disableImages: false, reuseSources: false }),
   login: z.object({
     username: z.string().trim().min(1).max(50),
     password: z.string().max(200)

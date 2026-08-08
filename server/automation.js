@@ -15,11 +15,18 @@ const { addHeadingIds, insertContextualImages } = require('./post-content');
 const USER_AGENT = 'CosmoGISBot/1.0 (+content research; configured sources only)';
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const HEARTBEAT_INTERVAL_MS = 15000;
+const STALE_RUN_SECONDS = 60;
 const cancellationError = () => Object.assign(new Error('Automation run was cancelled'), { code: 'AUTOMATION_CANCELLED' });
+const automationError = (code, message, details = null) => Object.assign(new Error(message), { code, details });
 const isCancellation = error => error?.code === 'AUTOMATION_CANCELLED' || (error?.name === 'AbortError' && error?.message === 'Automation run was cancelled');
 const requestSignal = (signal, timeoutMs) => signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
 const throwIfCancelled = signal => {
-  if (signal?.aborted) throw cancellationError();
+  if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : cancellationError();
+};
+const rethrowInterruption = (error, signal) => {
+  if (signal?.aborted) throw signal.reason instanceof Error ? signal.reason : cancellationError();
+  if (isCancellation(error)) throw cancellationError();
 };
 const generatedPostSchema = z.object({
   title: z.string().trim().min(10).max(255),
@@ -266,7 +273,7 @@ const robotsAllows = async (value, signal) => {
     }
     return !disallowed.some(path => url.pathname.startsWith(path));
   } catch (error) {
-    if (isCancellation(error) || signal?.aborted) throw cancellationError();
+    rethrowInterruption(error, signal);
     return true;
   }
 };
@@ -350,9 +357,20 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
   let progress = null;
   let activeController = null;
   let activeRunId = null;
+  let activeRuntime = null;
+  let heartbeatTimer = null;
+  let deadlineTimer = null;
+  let startResolver = null;
+  const reportStart = result => {
+    if (startResolver) startResolver(result);
+    startResolver = null;
+  };
   const updateProgress = (stage, message, percent, details = {}) => {
     progress = { stage, message, percent, updatedAt: new Date().toISOString(), ...details };
-    if (activeRunId) db.query('UPDATE ai_automation_runs SET stage=$1 WHERE id=$2', [stage, activeRunId]).catch(error => console.error('[Automation] Failed to persist progress:', error.message));
+    if (activeRuntime) {
+      activeRuntime.timeline.push({ stage, message, percent, at: progress.updatedAt });
+      db.query('UPDATE ai_automation_runs SET stage=$1, timeline=$2, heartbeat_at=CURRENT_TIMESTAMP WHERE id=$3 AND status=$4', [stage, JSON.stringify(activeRuntime.timeline), activeRunId, 'running']).catch(error => console.error('[Automation] Failed to persist progress:', error.message));
+    }
   };
   const fallbackConfig = {
     enabled: env.AI_AUTOMATION_ENABLED === 'true',
@@ -381,6 +399,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     ,editorialPrompt: ''
     ,requiredKeywords: []
     ,blockedKeywords: []
+    ,maxSources: 3
+    ,maxModelCalls: 10
+    ,maxDurationSeconds: 600
   };
 
   const loadConfig = async () => {
@@ -418,6 +439,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
       ,editorialPrompt: row.editorial_prompt || ''
       ,requiredKeywords: parseJsonArray(row.required_keywords, true)
       ,blockedKeywords: parseJsonArray(row.blocked_keywords, true)
+      ,maxSources: Number(row.max_sources ?? 3)
+      ,maxModelCalls: Number(row.max_model_calls ?? 10)
+      ,maxDurationSeconds: Number(row.max_duration_seconds ?? 600)
     };
   };
 
@@ -425,6 +449,25 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     if (!config.model) throw new Error('AI_MODEL is required');
     if (config.rssFeeds.length + config.websites.length === 0 && !config.discoveryEnabled) throw new Error('At least one source or topic discovery is required');
     if (!Number.isInteger(config.runHourUtc) || config.runHourUtc < 0 || config.runHourUtc > 23) throw new Error('AI_RUN_HOUR_UTC must be an integer from 0 to 23');
+    if (!Number.isInteger(config.maxSources) || config.maxSources < 1) throw automationError('INVALID_BUDGET', 'maxSources must be a positive integer');
+    if (!Number.isInteger(config.maxModelCalls) || config.maxModelCalls < 1) throw automationError('INVALID_BUDGET', 'maxModelCalls must be a positive integer');
+    if (!Number.isInteger(config.maxDurationSeconds) || config.maxDurationSeconds < 30) throw automationError('INVALID_BUDGET', 'maxDurationSeconds must be at least 30');
+  };
+
+  const consumeModelCall = async type => {
+    if (!activeRuntime) return;
+    if (Date.now() >= activeRuntime.deadlineAt) throw automationError('RUN_DEADLINE_EXCEEDED', 'Automation run exceeded its deadline', { deadlineAt: new Date(activeRuntime.deadlineAt).toISOString() });
+    if (activeRuntime.modelCalls >= activeRuntime.maxModelCalls) throw automationError('MODEL_CALL_BUDGET_EXCEEDED', 'Automation model-call budget was exhausted', { maxModelCalls: activeRuntime.maxModelCalls, type });
+    activeRuntime.modelCalls += 1;
+    await db.query('UPDATE ai_automation_runs SET model_calls=$1, heartbeat_at=CURRENT_TIMESTAMP WHERE id=$2 AND status=$3', [activeRuntime.modelCalls, activeRunId, 'running']);
+  };
+
+  const consumeSource = async url => {
+    if (!activeRuntime) return;
+    if (Date.now() >= activeRuntime.deadlineAt) throw automationError('RUN_DEADLINE_EXCEEDED', 'Automation run exceeded its deadline', { deadlineAt: new Date(activeRuntime.deadlineAt).toISOString() });
+    if (activeRuntime.sourcesAttempted >= activeRuntime.maxSources) throw automationError('SOURCE_BUDGET_EXCEEDED', 'Automation source budget was exhausted', { maxSources: activeRuntime.maxSources, url });
+    activeRuntime.sourcesAttempted += 1;
+    await db.query('UPDATE ai_automation_runs SET sources_attempted=$1, heartbeat_at=CURRENT_TIMESTAMP WHERE id=$2 AND status=$3', [activeRuntime.sourcesAttempted, activeRunId, 'running']);
   };
 
   const discoverCandidates = async (config, diagnostics, signal) => {
@@ -457,7 +500,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
       try {
         candidates.push(...await discoverCandidates(config, diagnostics, signal));
       } catch (error) {
-        if (isCancellation(error) || signal?.aborted) throw cancellationError();
+        rethrowInterruption(error, signal);
         diagnostics.errors.push(`DuckDuckGo: ${error.message}`);
         console.error('[Automation] DuckDuckGo discovery failed:', error.message);
       }
@@ -469,7 +512,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         diagnostics.rssItems += feedCandidates.length;
         candidates.push(...feedCandidates);
       } catch (error) {
-        if (isCancellation(error) || signal?.aborted) throw cancellationError();
+        rethrowInterruption(error, signal);
         diagnostics.errors.push(`RSS ${feedUrl}: ${error.message}`);
         console.error(`[Automation] RSS source failed (${feedUrl}):`, error.message);
       }
@@ -482,7 +525,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         diagnostics.websiteLinks += websiteLinks.length;
         candidates.push(...websiteLinks.map(url => ({ url, title: '', publishedAt: '', summary: '' })));
       } catch (error) {
-        if (isCancellation(error) || signal?.aborted) throw cancellationError();
+        rethrowInterruption(error, signal);
         diagnostics.errors.push(`Website ${websiteUrl}: ${error.message}`);
         console.error(`[Automation] Website source failed (${websiteUrl}):`, error.message);
       }
@@ -501,11 +544,11 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
 
   const claimCandidate = async candidate => {
     const result = await db.query(
-      `INSERT INTO ai_generation_log (source_url, status, claimed_at) VALUES ($1, 'processing', CURRENT_TIMESTAMP)
-       ON CONFLICT(source_url) DO UPDATE SET status='processing', claimed_at=CURRENT_TIMESTAMP, error=NULL
+      `INSERT INTO ai_generation_log (source_url, status, claimed_at, run_id) VALUES ($1, 'processing', CURRENT_TIMESTAMP, $2)
+       ON CONFLICT(source_url) DO UPDATE SET status='processing', claimed_at=CURRENT_TIMESTAMP, error=NULL, error_code=NULL, error_details=NULL, run_id=$2
        WHERE ai_generation_log.status NOT IN ('published', 'draft')
-         AND (ai_generation_log.status != 'processing' OR ai_generation_log.claimed_at <= datetime('now', '-1 hour'))`,
-      [candidate.url]
+          AND (ai_generation_log.status != 'processing' OR ai_generation_log.claimed_at <= datetime('now', '-1 hour'))`,
+      [candidate.url, activeRunId]
     );
     return result.rowCount > 0;
   };
@@ -568,12 +611,15 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         attempts += 1;
         throwIfCancelled(signal);
         try {
-          const send = body => fetch(`${config.baseUrl}/chat/completions`, {
+          const send = async body => {
+            await consumeModelCall('chat');
+            return fetch(`${config.baseUrl}/chat/completions`, {
             method: 'POST',
             signal: requestSignal(signal, 120000),
             headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}) },
             body: JSON.stringify({ ...body, model, stream: false })
-          });
+            });
+          };
           let response = await send({ ...request, response_format: { type: 'json_object' } });
           if (response.status === 400) response = await send(request);
           if (!response.ok) {
@@ -606,7 +652,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
             }
           }
         } catch (error) {
-          if (isCancellation(error) || signal?.aborted) throw cancellationError();
+          rethrowInterruption(error, signal);
           if (error?.automationFatal) throw error;
           const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
           const retryable = timedOut || error?.retryable || error?.name === 'ZodError' || error instanceof SyntaxError || error instanceof TypeError;
@@ -691,7 +737,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           articleUrl: image.articleUrl || article.url
         });
       } catch (error) {
-        if (isCancellation(error) || signal?.aborted) throw cancellationError();
+        rethrowInterruption(error, signal);
         console.warn(`[Automation] Source image skipped (${image.url}):`, error.message);
       }
     }
@@ -710,6 +756,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
 
   const generateImage = async (config, prompt, signal) => {
     throwIfCancelled(signal);
+    await consumeModelCall('image');
     const response = await fetch(`${config.baseUrl}/images/generations`, {
       method: 'POST',
       signal: requestSignal(signal, 120000),
@@ -747,7 +794,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
       const prompt = `Create a professional editorial hero image for a Vietnamese science and GIS article. Topic: ${generated.title}. Summary: ${generated.excerpt}. Category: ${category}. Keywords: ${generated.keywords.join(', ')}. Wide landscape composition, visually accurate, clean, no text, no logo, no watermark, suitable as a website article cover.`;
       titleImage = { url: await generateImage(config, prompt, signal), alt: generated.imageAlt, caption: 'Ảnh minh họa được tạo bằng AI qua 9Router.' };
     } catch (error) {
-      if (isCancellation(error) || signal?.aborted) throw cancellationError();
+      rethrowInterruption(error, signal);
       warnings.push(`Không tạo được ảnh tiêu đề: ${error.message || error}`);
     }
 
@@ -763,7 +810,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           afterHeading: section.title
         });
       } catch (error) {
-        if (isCancellation(error) || signal?.aborted) throw cancellationError();
+        rethrowInterruption(error, signal);
         warnings.push(`Không tạo được ảnh cho mục ${section.title}: ${error.message || error}`);
       }
     }
@@ -812,17 +859,44 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     return { score: Math.max(0, Math.min(score - verificationPenalty - policyPenalty, 100)), sourceCount: sourceUrls.length, wordCount, checks, warnings, hardFailures: [...verification.hardFailures, ...policyFailures], policy: { articleStyle: config.articleStyle, targetAudience: config.targetAudience, targetWordCount: config.targetWordCount, missingRequiredKeywords, presentBlockedKeywords }, verification, gateway: { writerModel: generated.gatewayModel, writerAttempts: generated.gatewayAttempts, factCheckModel: verification.model || null, factCheckAttempts: verification.attempts || 0 } };
   };
 
-  const run = async (triggerType = 'manual') => {
+  const run = async (triggerType = 'manual', options = {}) => {
     if (running) return { status: 'skipped', reason: 'already-running' };
     running = true;
     activeController = new AbortController();
     const signal = activeController.signal;
     activeRunId = `run-${Date.now()}-${randomUUID().slice(0, 8)}`;
-    await db.query('INSERT INTO ai_automation_runs (id, trigger_type, status, stage) VALUES ($1, $2, $3, $4)', [activeRunId, triggerType, 'running', 'config']);
-    updateProgress('config', 'Đang tải và kiểm tra cấu hình AI...', 5);
     try {
       const config = await loadConfig();
+      if (options.modelOverride) config.model = options.modelOverride;
+      if (options.disableImages) {
+        config.imageGenerationEnabled = false;
+        config.disableImages = true;
+      }
       validateConfig(config);
+      const deadlineAt = Date.now() + config.maxDurationSeconds * 1000;
+      activeRuntime = { timeline: [], modelCalls: 0, sourcesAttempted: 0, maxModelCalls: config.maxModelCalls, maxSources: config.maxSources, deadlineAt };
+      try {
+        await db.query(
+          `INSERT INTO ai_automation_runs
+           (id, trigger_type, status, stage, heartbeat_at, timeline, options, parent_run_id, max_sources, max_model_calls, max_duration_seconds, deadline_at)
+           VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, '[]', $5, $6, $7, $8, $9, $10)`,
+          [activeRunId, triggerType, 'running', 'config', JSON.stringify(options), options.parentRunId || null, config.maxSources, config.maxModelCalls, config.maxDurationSeconds, new Date(deadlineAt).toISOString()]
+        );
+      } catch (error) {
+        if (/unique constraint/i.test(String(error.message))) {
+          reportStart({ started: false, reason: 'already-running' });
+          return { status: 'skipped', reason: 'already-running' };
+        }
+        throw error;
+      }
+      reportStart({ started: true });
+      heartbeatTimer = setInterval(() => {
+        db.query("UPDATE ai_automation_runs SET heartbeat_at=CURRENT_TIMESTAMP WHERE id=$1 AND status='running'", [activeRunId]).catch(error => console.error('[Automation] Heartbeat failed:', error.message));
+      }, HEARTBEAT_INTERVAL_MS);
+      heartbeatTimer.unref?.();
+      deadlineTimer = setTimeout(() => activeController?.abort(automationError('RUN_DEADLINE_EXCEEDED', 'Automation run exceeded its deadline', { deadlineAt: new Date(deadlineAt).toISOString() })), config.maxDurationSeconds * 1000);
+      deadlineTimer.unref?.();
+      updateProgress('config', 'Đang tải và kiểm tra cấu hình AI...', 5);
       const diagnostics = {
         discoveryFound: 0,
         discoveryRejected: 0,
@@ -834,49 +908,63 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         failed: 0,
         errors: []
       };
-      updateProgress('sources', 'Đang tìm nguồn từ DuckDuckGo, RSS và website...', 15, { diagnostics: { ...diagnostics } });
-      const candidates = await collectCandidates(config, diagnostics, signal);
+      let candidates;
+      if (options.reuseSources && options.parentRunId) {
+        const parent = await db.query('SELECT source_urls FROM ai_automation_runs WHERE id=$1', [options.parentRunId]);
+        if (!parent.rows[0]) throw automationError('PARENT_RUN_NOT_FOUND', 'Parent automation run was not found', { parentRunId: options.parentRunId });
+        const sourceUrls = parseJsonArray(parent.rows[0].source_urls, true);
+        if (sourceUrls.length === 0) throw automationError('PARENT_SOURCES_UNAVAILABLE', 'Parent run has no reusable source URLs', { parentRunId: options.parentRunId });
+        candidates = sourceUrls.map(url => ({ url, title: '', publishedAt: '', summary: '' }));
+        diagnostics.candidates = candidates.length;
+        updateProgress('sources', `Đang tải lại ${candidates.length} nguồn từ lượt chạy trước...`, 15, { diagnostics: { ...diagnostics } });
+      } else {
+        updateProgress('sources', 'Đang tìm nguồn từ DuckDuckGo, RSS và website...', 15, { diagnostics: { ...diagnostics } });
+        candidates = await collectCandidates(config, diagnostics, signal);
+      }
       updateProgress('filtering', `Đã tìm thấy ${candidates.length} URL ứng viên. Đang lọc nguồn mới...`, 35, { diagnostics: { ...diagnostics }, totalCandidates: candidates.length, processedCandidates: 0 });
-      for (const [index, candidate] of candidates.entries()) {
+      for (const [index, candidate] of candidates.slice(0, config.maxSources).entries()) {
         throwIfCancelled(signal);
         updateProgress('reading', `Đang đọc nguồn ${index + 1}/${candidates.length}...`, 40 + Math.min(20, Math.round((index / Math.max(candidates.length, 1)) * 20)), { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index });
-        if (!await claimCandidate(candidate)) {
+        const reusingSources = Boolean(options.reuseSources && options.parentRunId);
+        if (!reusingSources && !await claimCandidate(candidate)) {
           diagnostics.alreadyProcessed += 1;
           continue;
         }
         const claimedSourceUrls = [candidate.url];
         try {
+          await consumeSource(candidate.url);
           if (!await robotsAllows(candidate.url, signal)) throw new Error('Source disallows crawling in robots.txt');
           const html = await fetchSource(candidate.url, 0, signal);
           const article = extractArticle(html, candidate.url, candidate);
           if (article.content.length < 200) throw new Error('Source article does not contain enough text');
           const contentHash = createHash('sha256').update(article.content.replace(/\s+/g, ' ').trim().toLowerCase()).digest('hex');
-          const duplicate = await db.query("SELECT source_url FROM ai_generation_log WHERE content_hash=$1 AND status='published'", [contentHash]);
+          const duplicate = reusingSources ? { rows: [] } : await db.query("SELECT source_url FROM ai_generation_log WHERE content_hash=$1 AND status='published'", [contentHash]);
           if (duplicate.rows.length > 0) {
             diagnostics.duplicates += 1;
-            await db.query("UPDATE ai_generation_log SET status='duplicate', content_hash=$1, error=$2 WHERE source_url=$3", [contentHash, `Duplicate of ${duplicate.rows[0].source_url}`, candidate.url]);
+            await db.query("UPDATE ai_generation_log SET status='duplicate', content_hash=$1, error=$2, error_code='DUPLICATE_CONTENT' WHERE source_url=$3 AND run_id=$4", [contentHash, `Duplicate of ${duplicate.rows[0].source_url}`, candidate.url, activeRunId]);
             continue;
           }
-          await db.query('UPDATE ai_generation_log SET content_hash=$1 WHERE source_url=$2', [contentHash, candidate.url]);
+          if (!reusingSources) await db.query('UPDATE ai_generation_log SET content_hash=$1 WHERE source_url=$2 AND run_id=$3', [contentHash, candidate.url, activeRunId]);
           const articles = [article];
-          const relatedCandidates = selectRelatedCandidates(candidate, candidates, 2);
+          const relatedCandidates = reusingSources ? candidates.filter(item => item.url !== candidate.url).slice(0, Math.max(0, config.maxSources - 1)) : selectRelatedCandidates(candidate, candidates, Math.max(0, config.maxSources - 1));
           for (const relatedCandidate of relatedCandidates) {
-            if (!await claimCandidate(relatedCandidate)) continue;
+            if (!reusingSources && !await claimCandidate(relatedCandidate)) continue;
             claimedSourceUrls.push(relatedCandidate.url);
             try {
+              await consumeSource(relatedCandidate.url);
               if (!await robotsAllows(relatedCandidate.url, signal)) throw new Error('Source disallows crawling in robots.txt');
               const relatedHtml = await fetchSource(relatedCandidate.url, 0, signal);
               const relatedArticle = extractArticle(relatedHtml, relatedCandidate.url, relatedCandidate);
               if (relatedArticle.content.length < 200) throw new Error('Source article does not contain enough text');
               articles.push(relatedArticle);
             } catch (error) {
-              if (isCancellation(error) || signal.aborted) throw cancellationError();
-              await db.query("UPDATE ai_generation_log SET status='failed', error=$1 WHERE source_url=$2", [String(error.message || error).slice(0, 1000), relatedCandidate.url]);
+              rethrowInterruption(error, signal);
+              if (!reusingSources) await db.query("UPDATE ai_generation_log SET status='failed', error=$1, error_code=$2, error_details=$3 WHERE source_url=$4 AND run_id=$5", [String(error.message || error).slice(0, 1000), error.code || 'SOURCE_FETCH_FAILED', JSON.stringify(error.details || null), relatedCandidate.url, activeRunId]);
             }
           }
           const sourceUrls = articles.map(source => source.url);
           const combinedImages = { ...article, images: articles.flatMap(source => source.images.map(image => ({ ...image, articleUrl: source.url }))).filter((image, imageIndex, images) => images.findIndex(candidateImage => candidateImage.url === image.url) === imageIndex) };
-          const storedImages = await persistArticleImages(combinedImages, signal);
+          const storedImages = config.disableImages ? [] : await persistArticleImages(combinedImages, signal);
           const categoryRows = await db.query('SELECT id, name FROM categories ORDER BY name');
           const categories = categoryRows.rows;
           updateProgress('writing', `Đã đọc ${articles.length} nguồn. 9Router đang đối chiếu và biên tập...`, 70, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
@@ -886,7 +974,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           try {
             verification = await factCheck(config, generated, articles, signal);
           } catch (error) {
-            if (isCancellation(error) || signal.aborted) throw cancellationError();
+            rethrowInterruption(error, signal);
             verification = { supported: 0, partial: 0, unsupported: 0, invalidCitations: [], assessments: [], hardFailures: [`Không thể hoàn tất kiểm chứng: ${error.message || error}`] };
           }
           updateProgress('publishing', 'Đã kiểm chứng dữ kiện. Đang chấm chất lượng và lưu bài...', 90, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
@@ -907,60 +995,69 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           quality.warnings.push(...generatedImages.warnings);
           const postStatus = config.approvalMode === 'quality_gate' && quality.score >= config.qualityThreshold && quality.hardFailures.length === 0 ? 'published' : 'draft';
           const hash = createHash('sha256').update(candidate.url).digest('hex').slice(0, 16);
-          const postId = `ai-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${hash}`.slice(0, 50);
+          const postId = `ai-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${hash}-${randomUUID().slice(0, 8)}`.slice(0, 50);
           await db.query(
             `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time, status, quality_score, quality_report, source_url, source_urls, seo_title, meta_description, keywords, image_alt, image_caption)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
             [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), generatedImages.titleImage?.url || storedImages[0]?.url || config.defaultImageUrl, readingTime(content), postStatus, quality.score, JSON.stringify(quality), candidate.url, JSON.stringify(sourceUrls), generated.seoTitle, generated.metaDescription, JSON.stringify(generated.keywords), generatedImages.titleImage?.alt || generated.imageAlt, generatedImages.titleImage?.caption || generated.imageCaption]
           );
           for (const sourceUrl of sourceUrls) {
-            await db.query("UPDATE ai_generation_log SET status=$1, post_id=$2, published_at=CASE WHEN $1='published' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE source_url=$3", [postStatus, postId, sourceUrl]);
+            if (!reusingSources) await db.query("UPDATE ai_generation_log SET status=$1, post_id=$2, published_at=CASE WHEN $1='published' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE source_url=$3 AND run_id=$4", [postStatus, postId, sourceUrl, activeRunId]);
           }
           lastResult = { status: postStatus, postId, sourceUrl: candidate.url, sourceCount: sourceUrls.length, title: generated.title, qualityScore: quality.score, model: generated.gatewayModel, attempts: generated.gatewayAttempts + (verification.attempts || 0), completedAt: new Date().toISOString() };
-          await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, post_id=$3, title=$4, model=$5, attempts=$6, quality_score=$7, source_count=$8, diagnostics=$9, completed_at=CURRENT_TIMESTAMP WHERE id=$10', [postStatus, 'completed', postId, generated.title, generated.gatewayModel, lastResult.attempts, quality.score, sourceUrls.length, JSON.stringify(diagnostics), activeRunId]);
           updateProgress('completed', postStatus === 'published' ? 'Đã đăng bài viết thành công.' : `Đã lưu bản nháp với điểm chất lượng ${quality.score}/100.`, 100, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
+          await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, post_id=$3, title=$4, model=$5, attempts=$6, quality_score=$7, source_count=$8, diagnostics=$9, source_urls=$10, model_calls=$11, sources_attempted=$12, timeline=$13, completed_at=CURRENT_TIMESTAMP WHERE id=$14', [postStatus, 'completed', postId, generated.title, generated.gatewayModel, lastResult.attempts, quality.score, sourceUrls.length, JSON.stringify(diagnostics), JSON.stringify(sourceUrls), activeRuntime.modelCalls, activeRuntime.sourcesAttempted, JSON.stringify(activeRuntime.timeline), activeRunId]);
           return lastResult;
         } catch (error) {
-          if (isCancellation(error) || signal.aborted) {
+          if (isCancellation(error)) {
             for (const sourceUrl of claimedSourceUrls) {
-              await db.query("UPDATE ai_generation_log SET status='cancelled', error='Cancelled by admin' WHERE source_url=$1 AND status='processing'", [sourceUrl]);
+              if (!reusingSources) await db.query("UPDATE ai_generation_log SET status='cancelled', error='Cancelled by admin', error_code='AUTOMATION_CANCELLED' WHERE source_url=$1 AND status='processing' AND run_id=$2", [sourceUrl, activeRunId]);
             }
             throw cancellationError();
           }
           diagnostics.failed += 1;
           if (diagnostics.errors.length < 10) diagnostics.errors.push(`${candidate.url}: ${error.message || error}`);
           for (const sourceUrl of claimedSourceUrls) {
-            await db.query("UPDATE ai_generation_log SET status='failed', error=$1 WHERE source_url=$2 AND status='processing'", [String(error.message || error).slice(0, 1000), sourceUrl]);
+            if (!reusingSources) await db.query("UPDATE ai_generation_log SET status='failed', error=$1, error_code=$2, error_details=$3 WHERE source_url=$4 AND status='processing' AND run_id=$5", [String(error.message || error).slice(0, 1000), error.code || 'SOURCE_PROCESSING_FAILED', JSON.stringify(error.details || null), sourceUrl, activeRunId]);
           }
-          if (error?.automationFatal) {
+          if (error?.automationFatal || ['RUN_DEADLINE_EXCEEDED', 'MODEL_CALL_BUDGET_EXCEEDED', 'SOURCE_BUDGET_EXCEEDED'].includes(error?.code)) {
             diagnostics.errors.push(`9Router: ${error.message}`);
             throw error;
           }
         }
       }
       lastResult = { status: 'skipped', reason: 'no-new-source', diagnostics, completedAt: new Date().toISOString() };
-      await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, diagnostics=$3, completed_at=CURRENT_TIMESTAMP WHERE id=$4', ['skipped', 'completed', JSON.stringify(diagnostics), activeRunId]);
       updateProgress('completed', 'Đã kiểm tra tất cả nguồn nhưng chưa tạo được bài mới.', 100, { diagnostics: { ...diagnostics }, totalCandidates: candidates.length, processedCandidates: candidates.length });
+      await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, diagnostics=$3, timeline=$4, completed_at=CURRENT_TIMESTAMP WHERE id=$5', ['skipped', 'completed', JSON.stringify(diagnostics), JSON.stringify(activeRuntime.timeline), activeRunId]);
       return lastResult;
     } catch (error) {
-      if (isCancellation(error) || signal.aborted) {
+      if (isCancellation(error)) {
         lastResult = { status: 'cancelled', completedAt: new Date().toISOString() };
-        await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, completed_at=CURRENT_TIMESTAMP WHERE id=$3', ['cancelled', 'cancelled', activeRunId]);
         updateProgress('cancelled', 'Đã dừng lượt tạo bài theo yêu cầu.', 100);
+        await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, completed_at=CURRENT_TIMESTAMP WHERE id=$3', ['cancelled', 'cancelled', activeRunId]);
+        await db.query('UPDATE ai_automation_runs SET error_code=$1, timeline=$2 WHERE id=$3', ['AUTOMATION_CANCELLED', JSON.stringify(activeRuntime.timeline), activeRunId]);
         return lastResult;
       }
       lastResult = {
         status: 'failed',
         error: String(error.message || error).slice(0, 500),
+        errorCode: error.code || 'AUTOMATION_FAILED',
+        errorDetails: error.details || null,
         completedAt: new Date().toISOString()
       };
-      await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, error=$3, completed_at=CURRENT_TIMESTAMP WHERE id=$4', ['failed', 'failed', lastResult.error, activeRunId]);
       updateProgress('failed', String(error.message || error), 100);
+      if (activeRuntime) await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, error=$3, error_code=$4, error_details=$5, model_calls=$6, sources_attempted=$7, timeline=$8, completed_at=CURRENT_TIMESTAMP WHERE id=$9', ['failed', 'failed', lastResult.error, lastResult.errorCode, JSON.stringify(lastResult.errorDetails), activeRuntime.modelCalls, activeRuntime.sourcesAttempted, JSON.stringify(activeRuntime.timeline), activeRunId]);
       throw error;
     } finally {
+      reportStart({ started: false, reason: 'failed-to-start' });
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      deadlineTimer = null;
       running = false;
       activeController = null;
       activeRunId = null;
+      activeRuntime = null;
     }
   };
 
@@ -989,31 +1086,46 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     await schedule();
   };
 
+  const recoverStaleRuns = async () => {
+    const stale = await db.query("SELECT id FROM ai_automation_runs WHERE status='running' AND COALESCE(heartbeat_at, started_at) <= datetime('now', $1)", [`-${STALE_RUN_SECONDS} seconds`]);
+    for (const row of stale.rows) {
+      await db.query("UPDATE ai_automation_runs SET status='failed', stage='failed', error=$1, error_code='STALE_RUN_RECOVERED', error_details=$2, completed_at=CURRENT_TIMESTAMP WHERE id=$3 AND status='running'", ['Automation run heartbeat expired', JSON.stringify({ staleAfterSeconds: STALE_RUN_SECONDS }), row.id]);
+      await db.query("UPDATE ai_generation_log SET status='failed', error=$1, error_code='STALE_RUN_RECOVERED', error_details=$2 WHERE run_id=$3 AND status='processing'", ['Automation run heartbeat expired', JSON.stringify({ staleAfterSeconds: STALE_RUN_SECONDS }), row.id]);
+    }
+    return { recovered: stale.rows.length, runIds: stale.rows.map(row => row.id) };
+  };
+
   return {
     run,
-    start: async (triggerType = 'manual') => {
+    start: async (triggerType = 'manual', options = {}) => {
       if (running) return { status: 'skipped', reason: 'already-running' };
-      const persistedRun = await db.query("SELECT id FROM ai_automation_runs WHERE status='running' ORDER BY started_at DESC LIMIT 1");
-      if (persistedRun.rows.length > 0) return { status: 'skipped', reason: 'stale-run-requires-cancel', runId: persistedRun.rows[0].id };
-      const runPromise = run(triggerType);
+      const startup = new Promise(resolve => { startResolver = resolve; });
+      const runPromise = run(triggerType, options);
       const runId = activeRunId;
       void runPromise.catch(error => console.error('[Automation] Background run failed:', error));
+      const startupResult = await startup;
+      if (!startupResult.started) return { status: 'skipped', reason: startupResult.reason };
       return { status: 'started', runId, startedAt: new Date().toISOString() };
     },
-    cancel: async () => {
+    cancel: async runId => {
+      if (runId && running && runId !== activeRunId) return { cancelled: false, reason: 'run-not-active', runId };
       if (running && activeController) {
         activeController.abort(cancellationError());
         updateProgress('cancelling', 'Đang dừng các tác vụ AI...', progress?.percent || 0);
         return { cancelled: true };
       }
-      const staleRuns = await db.query("SELECT id FROM ai_automation_runs WHERE status='running' ORDER BY started_at DESC");
+      const staleRuns = runId
+        ? await db.query("SELECT id FROM ai_automation_runs WHERE id=$1 AND status='running'", [runId])
+        : await db.query("SELECT id FROM ai_automation_runs WHERE status='running' ORDER BY started_at DESC LIMIT 1");
       if (staleRuns.rows.length === 0) return { cancelled: false, reason: 'not-running' };
-      await db.query("UPDATE ai_automation_runs SET status='cancelled', stage='cancelled', error=$1, completed_at=CURRENT_TIMESTAMP WHERE status='running'", ['Interrupted run cleared by admin']);
-      await db.query("UPDATE ai_generation_log SET status='cancelled', error=$1 WHERE status='processing'", ['Interrupted run cleared by admin']);
+      const staleRunId = staleRuns.rows[0].id;
+      await db.query("UPDATE ai_automation_runs SET status='cancelled', stage='cancelled', error=$1, error_code='AUTOMATION_CANCELLED', completed_at=CURRENT_TIMESTAMP WHERE id=$2 AND status='running'", ['Interrupted run cleared by admin', staleRunId]);
+      await db.query("UPDATE ai_generation_log SET status='cancelled', error=$1, error_code='AUTOMATION_CANCELLED' WHERE run_id=(SELECT id FROM ai_automation_runs WHERE id='" + staleRunId.replace(/'/g, "''") + "') AND status='processing'", ['Interrupted run cleared by admin']);
       lastResult = { status: 'cancelled', reason: 'stale-run-cleared', completedAt: new Date().toISOString() };
       updateProgress('cancelled', 'Đã hủy và dọn tiến trình cũ bị gián đoạn.', 100);
-      return { cancelled: true, stale: true, runId: staleRuns.rows[0].id };
+      return { cancelled: true, stale: true, runId: staleRunId };
     },
+    recoverStaleRuns,
     schedule,
     reschedule,
     status: async () => {

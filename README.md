@@ -115,7 +115,13 @@ AI_WEBSITE_URLS=https://example.com/news
 - Bot không sao chép HTML nguồn. Nội dung nguồn được chuyển thành văn bản dữ kiện, AI được yêu cầu viết lại, bài cuối được sanitize và tự thêm liên kết nguồn tham khảo.
 - URL và hash nội dung nguồn được chống trùng bằng bảng `ai_generation_log`, tránh đăng lại cùng một tin được syndicate qua nhiều website; nhiều process không thể đồng thời nhận cùng một nguồn. Lỗi nguồn được ghi lại để nguồn khác vẫn tiếp tục.
 - Endpoint admin: `GET/POST /api/automation/settings`, `GET /api/automation/status`, `GET /api/automation/history`, `POST /api/automation/run`.
+- Mỗi lượt chạy có heartbeat, deadline và ngân sách riêng cho số nguồn, số lượt gọi model và tổng thời gian. Backend tự đánh dấu run mất heartbeat là gián đoạn, giải phóng đúng source thuộc run đó và không cần dọn toàn bộ hàng đợi.
+- Dashboard lưu timeline, structured error, model calls và source attempts cho từng run. Có thể mở chi tiết 10 lượt gần nhất và chạy lại source cũ với model override hoặc tắt ảnh mà không thay đổi cấu hình toàn cục.
+- Nút **Kiểm tra kết nối** không chỉ đọc danh sách model mà còn gọi schema probe `{ "ok": true }`, cho biết model có hỗ trợ JSON mode trực tiếp hay phải dùng fallback.
+- Khi model trả JSON sai schema, backend cho phép đúng một lượt sửa cấu trúc với `temperature: 0`; lượt sửa không được thêm dữ kiện, URL hoặc citation mới. JSON vẫn sai sẽ dừng toàn lượt với danh sách trường lỗi rút gọn.
+- API vận hành bổ sung: `GET /api/automation/runs`, `GET /api/automation/runs/:id`, `POST /api/automation/runs/:id/rerun` và `POST /api/automation/cancel`.
 - API key được lưu trong SQLite nhưng endpoint đọc chỉ trả trạng thái có/không, không bao giờ trả secret về trình duyệt. Để trống ô key khi lưu sẽ giữ key cũ; thao tác xóa phải được chọn rõ ràng.
 - API key trong file SQLite là secret at rest: giới hạn quyền đọc file database/backup và chỉ nhập key nếu endpoint 9Router thực sự yêu cầu. 9Router chạy local thường có thể để trống.
 - Chế độ hiện tại đăng bài ngay theo lựa chọn của bạn. Nên thường xuyên kiểm tra lịch sử và nội dung vì AI vẫn có thể tạo thông tin sai dù prompt yêu cầu không bịa dữ kiện.
+- Khi triển khai thay đổi automation, cập nhật backend trước rồi mới cập nhật frontend để migration SQLite và API contract mới sẵn sàng trước khi giao diện gửi các trường ngân sách/rerun.
 

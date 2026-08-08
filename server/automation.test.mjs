@@ -471,4 +471,22 @@ describe('content automation helpers', () => {
     expect(db.query).toHaveBeenCalledWith(expect.stringContaining("UPDATE ai_generation_log SET status='cancelled'"), ['Interrupted run cleared by admin']);
   });
 
+  it('recovers only generation rows owned by stale run ids', async () => {
+    const queries = [];
+    const db = {
+      query: vi.fn(async (sql, params = []) => {
+        queries.push({ sql, params });
+        if (sql.includes("COALESCE(heartbeat_at, started_at)")) return { rows: [{ id: 'run-stale-a' }, { id: 'run-stale-b' }] };
+        return { rows: [], rowCount: 1 };
+      })
+    };
+
+    const service = createAutomation({ db });
+    expect(await service.recoverStaleRuns()).toEqual({ recovered: 2, runIds: ['run-stale-a', 'run-stale-b'] });
+    const generationUpdates = queries.filter(query => query.sql.includes('UPDATE ai_generation_log'));
+    expect(generationUpdates).toHaveLength(2);
+    expect(generationUpdates[0].sql).toContain('WHERE run_id=$3');
+    expect(generationUpdates.map(query => query.params[2])).toEqual(['run-stale-a', 'run-stale-b']);
+  });
+
 });

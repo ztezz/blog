@@ -1,5 +1,5 @@
 
-import { AutomationConnectionResult, AutomationRunHistory, AutomationRunResult, AutomationSettings, AutomationStatistics, AutomationStatus, BlogPost, SiteSettings, User, ContactMessage, Category } from '../types';
+import { AutomationConnectionResult, AutomationRunDetail, AutomationRunHistory, AutomationRunOptions, AutomationRunResult, AutomationSettings, AutomationStatistics, AutomationStatus, BlogPost, SiteSettings, User, ContactMessage, Category } from '../types';
 import { BLOG_POSTS as INITIAL_POSTS, CATEGORIES as INITIAL_CATEGORIES } from '../constants';
 
 // --- Configuration ---
@@ -64,13 +64,17 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     throw new Error(`API returned invalid format: ${res.status} ${res.statusText}`);
   }
 
-  const data = await res.json() as { error?: string; issues?: Array<{ path?: string; message?: string }> };
+  const data = await res.json() as { error?: string; code?: string; details?: Record<string, unknown>; issues?: Array<{ path?: string; message?: string }> };
   
   if (!res.ok) {
     const issueDetails = data.issues
       ?.map(issue => `${issue.path || 'request'}: ${issue.message || 'Invalid value'}`)
       .join('\n');
-    throw new Error([data.error || `API Error: ${res.statusText}`, issueDetails].filter(Boolean).join('\n'));
+    const error = new Error([data.error || `API Error: ${res.statusText}`, issueDetails].filter(Boolean).join('\n')) as Error & { status?: number; code?: string; details?: Record<string, unknown> };
+    error.status = res.status;
+    error.code = data.code;
+    error.details = data.details;
+    throw error;
   }
   
   return data as T;
@@ -242,8 +246,8 @@ export const getAutomationStatus = async (): Promise<AutomationStatus> => {
   return fetchApi<AutomationStatus>('/automation/status');
 };
 
-export const runAutomation = async (): Promise<AutomationRunResult> => {
-  return fetchApi<AutomationRunResult>('/automation/run', { method: 'POST' });
+export const runAutomation = async (options: AutomationRunOptions = {}): Promise<AutomationRunResult> => {
+  return fetchApi<AutomationRunResult>('/automation/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(options) });
 };
 
 export const cancelAutomation = async (): Promise<{ cancelled: boolean; reason?: string; stale?: boolean; runId?: string }> => {
@@ -251,6 +255,8 @@ export const cancelAutomation = async (): Promise<{ cancelled: boolean; reason?:
 };
 
 export const getAutomationRuns = async (): Promise<AutomationRunHistory[]> => fetchApi<AutomationRunHistory[]>('/automation/runs');
+export const getAutomationRun = async (id: string): Promise<AutomationRunDetail> => fetchApi<AutomationRunDetail>(`/automation/runs/${encodeURIComponent(id)}`);
+export const rerunAutomation = async (id: string, options: Pick<AutomationRunOptions, 'modelOverride' | 'disableImages'> = {}): Promise<AutomationRunResult> => fetchApi<AutomationRunResult>(`/automation/runs/${encodeURIComponent(id)}/rerun`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(options) });
 export const getAutomationStatistics = async (): Promise<AutomationStatistics> => fetchApi<AutomationStatistics>('/automation/statistics');
 
 export const saveAutomationSettings = async (settings: AutomationSettings): Promise<AutomationSettings> => {

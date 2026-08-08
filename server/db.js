@@ -12,6 +12,7 @@ fs.mkdirSync(path.dirname(databasePath), { recursive: true });
 const database = new Database(databasePath);
 database.pragma('journal_mode = WAL');
 database.pragma('foreign_keys = ON');
+database.pragma('busy_timeout = 5000');
 
 const query = async (sql, params = []) => {
   const prepared = prepareSql(sql, params);

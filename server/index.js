@@ -287,8 +287,16 @@ const initDb = async () => {
       );
     `);
     const automationColumns = await db.query('PRAGMA table_info(ai_generation_log)');
-    if (!automationColumns.rows.some(column => column.name === 'content_hash')) {
-      await db.query('ALTER TABLE ai_generation_log ADD COLUMN content_hash VARCHAR(64)');
+    const generationLogMigrations = [
+      ['content_hash', 'VARCHAR(64)'],
+      ['run_id', 'VARCHAR(50)'],
+      ['error_code', 'VARCHAR(80)'],
+      ['error_details', 'TEXT']
+    ];
+    for (const [column, definition] of generationLogMigrations) {
+      if (!automationColumns.rows.some(existing => existing.name === column)) {
+        await db.query(`ALTER TABLE ai_generation_log ADD COLUMN ${column} ${definition}`);
+      }
     }
     await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_generation_content_hash ON ai_generation_log(content_hash) WHERE content_hash IS NOT NULL');
 
@@ -311,6 +319,31 @@ const initDb = async () => {
       );
     `);
     await db.query('CREATE INDEX IF NOT EXISTS idx_ai_automation_runs_started ON ai_automation_runs(started_at DESC)');
+    const runColumns = await db.query('PRAGMA table_info(ai_automation_runs)');
+    const runMigrations = [
+      ['heartbeat_at', 'TIMESTAMP'],
+      ['timeline', "TEXT NOT NULL DEFAULT '[]'"],
+      ['error_code', 'VARCHAR(80)'],
+      ['error_details', 'TEXT'],
+      ['options', "TEXT NOT NULL DEFAULT '{}'"],
+      ['parent_run_id', 'VARCHAR(50)'],
+      ['source_urls', "TEXT NOT NULL DEFAULT '[]'"],
+      ['max_sources', 'INTEGER NOT NULL DEFAULT 3'],
+      ['max_model_calls', 'INTEGER NOT NULL DEFAULT 10'],
+      ['max_duration_seconds', 'INTEGER NOT NULL DEFAULT 600'],
+      ['model_calls', 'INTEGER NOT NULL DEFAULT 0'],
+      ['sources_attempted', 'INTEGER NOT NULL DEFAULT 0'],
+      ['deadline_at', 'TIMESTAMP']
+    ];
+    for (const [column, definition] of runMigrations) {
+      if (!runColumns.rows.some(existing => existing.name === column)) {
+        await db.query(`ALTER TABLE ai_automation_runs ADD COLUMN ${column} ${definition}`);
+      }
+    }
+    await db.query("UPDATE ai_automation_runs SET status='failed', stage='failed', error=COALESCE(error, 'Superseded duplicate active run'), error_code=COALESCE(error_code, 'RUN_SUPERSEDED'), completed_at=CURRENT_TIMESTAMP WHERE status='running' AND id NOT IN (SELECT id FROM ai_automation_runs WHERE status='running' ORDER BY started_at DESC LIMIT 1)");
+    await db.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_automation_one_active ON ai_automation_runs((1)) WHERE status='running'");
+    await db.query('CREATE INDEX IF NOT EXISTS idx_ai_automation_runs_parent ON ai_automation_runs(parent_run_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_ai_generation_log_run ON ai_generation_log(run_id)');
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS ai_automation_settings (
@@ -363,6 +396,9 @@ const initDb = async () => {
       ['editorial_prompt', "TEXT NOT NULL DEFAULT ''"],
       ['required_keywords', "TEXT NOT NULL DEFAULT '[]'"],
       ['blocked_keywords', "TEXT NOT NULL DEFAULT '[]'"],
+      ['max_sources', 'INTEGER NOT NULL DEFAULT 3'],
+      ['max_model_calls', 'INTEGER NOT NULL DEFAULT 10'],
+      ['max_duration_seconds', 'INTEGER NOT NULL DEFAULT 600'],
       ['updated_at', 'TIMESTAMP']
     ];
     for (const [column, definition] of settingsMigrations) {
@@ -439,6 +475,43 @@ const fixUrl = (url) => {
 // --- API ROUTES ---
 
 const automation = createAutomation({ db, uploadDir, publicApiUrl });
+const safeJson = (value, fallback) => {
+  try {
+    const parsed = JSON.parse(value || '');
+    return parsed === null ? fallback : parsed;
+  } catch {
+    return fallback;
+  }
+};
+const serializeAutomationRun = run => ({
+  id: run.id,
+  triggerType: run.trigger_type,
+  status: run.status,
+  stage: run.stage,
+  postId: run.post_id,
+  title: run.title,
+  model: run.model,
+  attempts: Number(run.attempts || 0),
+  qualityScore: run.quality_score,
+  sourceCount: Number(run.source_count || 0),
+  diagnostics: safeJson(run.diagnostics, null),
+  error: run.error,
+  errorCode: run.error_code,
+  errorDetails: safeJson(run.error_details, null),
+  heartbeatAt: run.heartbeat_at,
+  timeline: safeJson(run.timeline, []),
+  options: safeJson(run.options, {}),
+  parentRunId: run.parent_run_id,
+  sourceUrls: safeJson(run.source_urls, []),
+  maxSources: Number(run.max_sources || 0),
+  maxModelCalls: Number(run.max_model_calls || 0),
+  maxDurationSeconds: Number(run.max_duration_seconds || 0),
+  modelCalls: Number(run.model_calls || 0),
+  sourcesAttempted: Number(run.sources_attempted || 0),
+  deadlineAt: run.deadline_at,
+  startedAt: run.started_at,
+  completedAt: run.completed_at
+});
 
 app.get('/', (req, res) => {
   res.json({
@@ -495,11 +568,41 @@ app.post('/api/automation/test-connection', authenticate, authorize('admin'), au
     const models = Array.isArray(payload?.data)
       ? payload.data.map(item => typeof item === 'string' ? item : item?.id).filter(id => typeof id === 'string')
       : [];
+    const model = req.body.model || models[0] || savedSettings.model;
+    if (!model) return res.status(400).json({ error: 'A model is required for the schema probe', code: 'AI_MODEL_REQUIRED' });
+    const sendProbe = responseFormat => fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(15000),
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+      body: JSON.stringify({ model, stream: false, temperature: 0, messages: [{ role: 'system', content: 'Return only valid JSON.' }, { role: 'user', content: 'Return exactly {"ok":true}.' }], ...(responseFormat ? { response_format: { type: 'json_object' } } : {}) })
+    });
+    let probeResponse = await sendProbe(true);
+    const responseFormatRejected = probeResponse.status === 400;
+    if (responseFormatRejected) probeResponse = await sendProbe(false);
+    const probeText = await probeResponse.text();
+    let probePayload = null;
+    let probeContent = null;
+    try {
+      probePayload = JSON.parse(probeText);
+      probeContent = JSON.parse(String(probePayload?.choices?.[0]?.message?.content || '').replace(/^```(?:json)?\s*|\s*```$/gi, ''));
+    } catch {
+      // Report malformed gateway output in schemaProbe instead of hiding the model-list result.
+    }
+    const schemaOk = probeResponse.ok && probeContent?.ok === true;
     return res.json({
       success: true,
       latencyMs: Date.now() - startedAt,
       modelCount: models.length,
-      modelAvailable: req.body.model ? models.includes(req.body.model) : null
+      modelAvailable: req.body.model ? models.includes(req.body.model) : null,
+      schemaProbe: {
+        ok: schemaOk,
+        model,
+        status: probeResponse.status,
+        responseFormatSupported: !responseFormatRejected,
+        fallbackUsed: responseFormatRejected,
+        response: probeContent,
+        error: schemaOk ? null : probeText.replace(/\s+/g, ' ').trim().slice(0, 300) || 'Invalid schema probe response'
+      }
     });
   } catch (error) {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
@@ -525,9 +628,10 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
        fallback_models=$19, retry_count=$20, image_generation_enabled=$21,
        image_model=$22, generated_content_image_count=$23, article_style=$24,
        target_word_count=$25, target_audience=$26, editorial_prompt=$27,
-       required_keywords=$28, blocked_keywords=$29, updated_at=CURRENT_TIMESTAMP
+       required_keywords=$28, blocked_keywords=$29, max_sources=$30,
+       max_model_calls=$31, max_duration_seconds=$32, updated_at=CURRENT_TIMESTAMP
        WHERE id=1`,
-      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount, settings.imageGenerationEnabled ? 1 : 0, settings.imageModel, settings.generatedContentImageCount, settings.articleStyle, settings.targetWordCount, settings.targetAudience, settings.editorialPrompt, JSON.stringify(settings.requiredKeywords), JSON.stringify(settings.blockedKeywords)]
+       [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount, settings.imageGenerationEnabled ? 1 : 0, settings.imageModel, settings.generatedContentImageCount, settings.articleStyle, settings.targetWordCount, settings.targetAudience, settings.editorialPrompt, JSON.stringify(settings.requiredKeywords), JSON.stringify(settings.blockedKeywords), settings.maxSources, settings.maxModelCalls, settings.maxDurationSeconds]
     );
     await automation.reschedule();
     const saved = await ensureAutomationSettings(db);
@@ -541,7 +645,7 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
 app.get('/api/automation/history', authenticate, authorize('admin'), async (req, res, next) => {
   try {
     const result = await db.query(
-      'SELECT source_url, content_hash, status, claimed_at, published_at, post_id, error FROM ai_generation_log ORDER BY claimed_at DESC LIMIT 50'
+      'SELECT source_url, content_hash, status, claimed_at, published_at, post_id, run_id, error, error_code, error_details FROM ai_generation_log ORDER BY claimed_at DESC LIMIT 50'
     );
     return res.json(result.rows);
   } catch (error) {
@@ -551,23 +655,30 @@ app.get('/api/automation/history', authenticate, authorize('admin'), async (req,
 
 app.get('/api/automation/runs', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    const result = await db.query('SELECT id, trigger_type, status, stage, post_id, title, model, attempts, quality_score, source_count, diagnostics, error, started_at, completed_at FROM ai_automation_runs ORDER BY started_at DESC LIMIT 50');
-    return res.json(result.rows.map(run => ({
-      id: run.id,
-      triggerType: run.trigger_type,
-      status: run.status,
-      stage: run.stage,
-      postId: run.post_id,
-      title: run.title,
-      model: run.model,
-      attempts: run.attempts,
-      qualityScore: run.quality_score,
-      sourceCount: run.source_count,
-      diagnostics: run.diagnostics ? JSON.parse(run.diagnostics) : null,
-      error: run.error,
-      startedAt: run.started_at,
-      completedAt: run.completed_at
-    })));
+    const result = await db.query('SELECT * FROM ai_automation_runs ORDER BY started_at DESC LIMIT 50');
+    return res.json(result.rows.map(serializeAutomationRun));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/automation/runs/:id', authenticate, authorize('admin'), validateParams(schemas.idParam), async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT * FROM ai_automation_runs WHERE id=$1', [req.params.id]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Automation run not found', code: 'AUTOMATION_RUN_NOT_FOUND' });
+    return res.json(serializeAutomationRun(result.rows[0]));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/automation/runs/:id/rerun', authenticate, authorize('admin'), automationLimiter, validateParams(schemas.idParam), validateBody(schemas.automationRunOptions), async (req, res, next) => {
+  try {
+    const parent = await db.query('SELECT id FROM ai_automation_runs WHERE id=$1', [req.params.id]);
+    if (!parent.rows[0]) return res.status(404).json({ error: 'Automation run not found', code: 'AUTOMATION_RUN_NOT_FOUND' });
+    const options = { ...req.body, reuseSources: true, parentRunId: req.params.id };
+    const result = await automation.start('rerun', options);
+    return res.status(result.status === 'started' ? 202 : 200).json(result);
   } catch (error) {
     return next(error);
   }
@@ -605,15 +716,15 @@ app.get('/api/automation/statistics', authenticate, authorize('admin'), async (r
 
 app.post('/api/automation/cancel', authenticate, authorize('admin'), async (req, res, next) => {
   try {
-    return res.json(await automation.cancel());
+    return res.json(await automation.cancel(req.body?.runId));
   } catch (error) {
     return next(error);
   }
 });
 
-app.post('/api/automation/run', authenticate, authorize('admin'), automationLimiter, async (req, res, next) => {
+app.post('/api/automation/run', authenticate, authorize('admin'), automationLimiter, validateBody(schemas.automationRunOptions), async (req, res, next) => {
   try {
-    const result = await automation.start();
+    const result = await automation.start('manual', req.body);
     return res.status(result.status === 'started' ? 202 : 200).json(result);
   } catch (error) {
     return next(error);
@@ -1069,6 +1180,7 @@ app.use((err, req, res, _next) => {
 
 // Initialize DB then Start Server
 initDb().then(async () => {
+    await automation.recoverStaleRuns();
     await automation.schedule();
     app.listen(port, () => {
       console.log(`API server running on port ${port}`);
