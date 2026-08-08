@@ -40,7 +40,7 @@ const generatedPostSchema = z.object({
   })).max(3).optional().default([]),
   claims: z.array(z.object({
     text: z.string().trim().min(10).max(500),
-    sourceIds: z.array(z.string().regex(/^S\d+$/)).min(1).max(3)
+    sourceIds: z.array(z.string().regex(/^S\d+$/)).max(3).default([])
   })).max(20).optional().default([])
 });
 const factCheckSchema = z.object({
@@ -284,12 +284,16 @@ const normalizeSourceIds = value => {
 const normalizeGeneratedPost = payload => {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
   const claims = Array.isArray(payload.claims) ? payload.claims.map(claim => {
+    if (typeof claim === 'string') return { text: claim, sourceIds: normalizeSourceIds(claim) };
     if (!claim || typeof claim !== 'object' || Array.isArray(claim)) return claim;
     const text = claim.text ?? claim.claim ?? claim.statement ?? claim.fact ?? claim.assertion;
     const sourceIds = normalizeSourceIds(claim.sourceIds ?? claim.source_ids ?? claim.sourceId ?? claim.source_id ?? claim.sources ?? claim.source ?? claim.citations ?? claim.citation ?? claim.references ?? claim.evidence);
     return { ...claim, text, sourceIds };
   }) : payload.claims;
-  return { ...payload, claims };
+  const keywords = typeof payload.keywords === 'string'
+    ? [...new Set(payload.keywords.split(/[,;\r\n]+/).map(keyword => keyword.trim()).filter(Boolean))].slice(0, 8)
+    : payload.keywords;
+  return { ...payload, claims, keywords };
 };
 const readingTime = html => {
   const words = html.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length;
@@ -599,8 +603,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     const invalidCitations = generated.claims.flatMap((claim, claimIndex) => claim.sourceIds
       .filter(sourceId => !validSourceIds.has(sourceId))
       .map(sourceId => ({ claimIndex, sourceId })));
+    const uncitedClaims = generated.claims.flatMap((claim, claimIndex) => claim.sourceIds.length === 0 ? [{ claimIndex, text: claim.text }] : []);
     if (generated.claims.length === 0) {
-      return { supported: 0, partial: 0, unsupported: 0, invalidCitations, assessments: [], hardFailures: ['AI không cung cấp danh sách dữ kiện để kiểm chứng'] };
+      return { supported: 0, partial: 0, unsupported: 0, invalidCitations, uncitedClaims, assessments: [], hardFailures: ['AI không cung cấp danh sách dữ kiện để kiểm chứng'] };
     }
 
     const evidence = articles.map((article, index) => `[S${index + 1}] ${article.title}\n${article.content}`).join('\n\n---\n\n');
@@ -623,8 +628,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     const unsupported = assessments.filter(item => item.status === 'unsupported').length;
     const hardFailures = [];
     if (invalidCitations.length > 0) hardFailures.push(`${invalidCitations.length} trích dẫn dùng mã nguồn không tồn tại`);
+    if (uncitedClaims.length > 0) hardFailures.push(`${uncitedClaims.length} dữ kiện không trích dẫn nguồn`);
     if (unsupported > 0) hardFailures.push(`${unsupported} dữ kiện không được nguồn hỗ trợ`);
-    return { supported, partial, unsupported, invalidCitations, assessments, hardFailures, model: gatewayResult.model, attempts: gatewayResult.attempts };
+    return { supported, partial, unsupported, invalidCitations, uncitedClaims, assessments, hardFailures, model: gatewayResult.model, attempts: gatewayResult.attempts };
   };
 
   const persistArticleImages = async (article, signal) => {

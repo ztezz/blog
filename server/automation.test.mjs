@@ -94,17 +94,21 @@ describe('content automation helpers', () => {
   });
 
   it('normalizes common claim aliases without inventing source citations', () => {
-    expect(normalizeGeneratedPost({ claims: [
+    expect(normalizeGeneratedPost({ keywords: 'GIS, bản đồ; viễn thám\nGIS', claims: [
+      'Dữ kiện dạng chuỗi có trích dẫn từ [S1].',
+      'Dữ kiện dạng chuỗi nhưng không cung cấp mã nguồn.',
       { claim: 'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình Sao Hỏa.', sources: ['[S1]', 'S2'] },
       { statement: 'Ảnh quỹ đạo cung cấp bằng chứng địa hình chi tiết.', citations: [1, { id: 'S3' }] },
       { assertion: 'Mô hình địa hình được xây dựng từ ảnh quỹ đạo.', source: '[S2]' },
       { fact: 'Dữ kiện chưa có trích dẫn.' }
-    ] }).claims).toEqual([
+    ] })).toMatchObject({ keywords: ['GIS', 'bản đồ', 'viễn thám'], claims: [
+      { text: 'Dữ kiện dạng chuỗi có trích dẫn từ [S1].', sourceIds: ['S1'] },
+      { text: 'Dữ kiện dạng chuỗi nhưng không cung cấp mã nguồn.', sourceIds: [] },
       expect.objectContaining({ text: 'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình Sao Hỏa.', sourceIds: ['S1', 'S2'] }),
       expect.objectContaining({ text: 'Ảnh quỹ đạo cung cấp bằng chứng địa hình chi tiết.', sourceIds: ['S1', 'S3'] }),
       expect.objectContaining({ text: 'Mô hình địa hình được xây dựng từ ảnh quỹ đạo.', sourceIds: ['S2'] }),
       expect.objectContaining({ text: 'Dữ kiện chưa có trích dẫn.', sourceIds: [] })
-    ]);
+    ] });
     expect(normalizeSourceIds(['source S2 and S4', 'không có mã nguồn'])).toEqual(['S2', 'S4']);
   });
 
@@ -178,11 +182,11 @@ describe('content automation helpers', () => {
             tags: ['Sao Hỏa', 'GIS', 'Vệ tinh'],
             seoTitle: 'Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới',
             metaDescription: 'Khám phá dữ liệu vệ tinh hỗ trợ lập bản đồ Sao Hỏa. Nội dung không chứa quảng-cáo trả phí ngoài phần kiểm thử chính sách.',
-            keywords: ['bản đồ Sao Hỏa', 'dữ liệu vệ tinh'],
+            keywords: 'bản đồ Sao Hỏa, dữ liệu vệ tinh',
             imageAlt: 'Bản đồ địa hình Sao Hỏa từ dữ liệu vệ tinh',
             imageCaption: 'Dữ liệu vệ tinh phục vụ nghiên cứu địa hình Sao Hỏa.',
             imagePlacements: [{ imageId: 'I2', afterHeading: 'Tổng quan', alt: 'Xe tự hành khảo sát Sao Hỏa', caption: 'Xe tự hành thu thập dữ liệu hỗ trợ lập bản đồ địa hình.' }],
-            claims: [{ text: 'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình Sao Hỏa.', sourceIds: ['S1'] }]
+            claims: ['Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình Sao Hỏa. [S1]']
           }) } }]
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
