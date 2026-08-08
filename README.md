@@ -66,7 +66,7 @@ CosmoGIS là một nền tảng WebGIS hiện đại kết hợp giữa công ng
 - Build command: `npm run build:frontend`
 - Build output directory: `dist`
 - Deploy command: để trống vì Cloudflare Pages tự xuất bản thư mục `dist` sau khi build.
-- Environment variable: `VITE_API_URL=https://api.example.com/api`
+- Environment variables: `VITE_API_URL=https://api.example.com/api` and `VITE_SITE_URL=https://www.example.com` (the canonical production domain, without a trailing slash).
 - SPA fallback được cấu hình trong `wrangler.jsonc` khi triển khai bằng Workers Builds.
 
 Nếu dùng Cloudflare Workers Builds thay vì Pages, sử dụng deploy command `npx wrangler deploy`. File `wrangler.jsonc` đã cấu hình `dist` là static assets và bật SPA fallback mà không phụ thuộc vào phiên bản Vite.
@@ -74,10 +74,11 @@ Nếu dùng Cloudflare Workers Builds thay vì Pages, sử dụng deploy command
 ## Triển khai backend trên server riêng
 
 - Cài dependencies bằng `npm ci`.
-- Khai báo `SQLITE_PATH`, `PORT`, `FRONTEND_URL` và `PUBLIC_API_URL` trong môi trường của server. Nếu chạy sau reverse proxy, đặt `TRUST_PROXY` bằng số proxy tin cậy (thường là `1` với Nginx/Caddy) để rate limit dùng đúng IP client.
+- Khai báo `SQLITE_PATH`, `PORT`, `FRONTEND_URL`, `PUBLIC_API_URL` và `PUBLIC_SITE_URL` trong môi trường của server. `PUBLIC_SITE_URL` phải trùng domain chính trong Google Search Console. Nếu chạy sau reverse proxy, đặt `TRUST_PROXY` bằng số proxy tin cậy (thường là `1` với Nginx/Caddy) để rate limit dùng đúng IP client.
 - `FRONTEND_URL` có thể chứa nhiều tên miền, phân cách bằng dấu phẩy, ví dụ `https://project.pages.dev,https://www.example.com`.
 - Chạy API bằng `npm run start:backend`. Backend không còn build hoặc phục vụ frontend.
 - Trỏ DNS của tên miền API, ví dụ `api.example.com`, tới server và cấu hình HTTPS bằng reverse proxy như Nginx hoặc Caddy.
+- Sitemap động có tại `GET /sitemap.xml` và `GET /api/sitemap.xml`, chỉ chứa bài đã xuất bản. Vì frontend và backend chạy ở hai host riêng, cấu hình Cloudflare/Nginx proxy `https://www.example.com/sitemap.xml` tới endpoint backend, sau đó gửi URL này trong Google Search Console. File `robots.txt` chặn khu vực quản trị; có thể thêm dòng `Sitemap: https://www.example.com/sitemap.xml` sau khi domain production đã được điền chính xác.
 - Đặt `SQLITE_PATH` trên volume/ổ đĩa bền vững và sao lưu cả file SQLite lẫn thư mục `server/uploads`.
 - Nút khôi phục trong trang quản trị có thể nhập dữ liệu từ các khối `COPY` của file dump PostgreSQL `dulieu_webgis_2026-04-02.sql` vào SQLite. Thao tác này thay thế dữ liệu hiện có trong các bảng tương ứng.
 - Mật khẩu được hash bằng bcrypt. Khi backend khởi động hoặc nhập dump cũ, các mật khẩu plaintext hiện có được tự động chuyển thành hash. Dùng `ADMIN_PASSWORD` để đặt mật khẩu admin khi tạo database mới và `BCRYPT_ROUNDS` để điều chỉnh cost trong khoảng `10-15` (mặc định `12`).

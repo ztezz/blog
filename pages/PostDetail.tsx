@@ -23,6 +23,15 @@ const PostDetail: React.FC = () => {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (loading || post) return;
+    const robots = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]') || document.createElement('meta');
+    robots.name = 'robots';
+    robots.content = 'noindex, nofollow';
+    if (!robots.parentNode) document.head.appendChild(robots);
+    document.title = 'Bài viết không tồn tại';
+  }, [loading, post]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">

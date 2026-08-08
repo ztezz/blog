@@ -6,6 +6,7 @@ import StarBackground from './StarBackground';
 import SkyBackground from './SkyBackground';
 import { getSettings } from '../utils/storage';
 import { SiteSettings, NavItem } from '../types';
+import SiteSeo from './SiteSeo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -87,27 +88,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   }, [settings]);
 
-  useEffect(() => {
-    if (!settings || /^\/blog\/[^/]+$/.test(location.pathname)) return;
-    const siteName = `${settings.siteNamePrefix}${settings.siteNameSuffix}`.trim();
-    const baseTitle = settings.pageTitle?.trim() || siteName;
-    const routeTitles: Record<string, string> = {
-      '/': baseTitle,
-      '/blog': `Bài viết | ${siteName}`,
-      '/about': `Giới thiệu | ${siteName}`,
-      '/contact': `Liên hệ | ${siteName}`,
-      '/admin': `Đăng nhập | ${siteName}`,
-      '/admin/dashboard': `Bảng điều khiển | ${siteName}`,
-      '/admin/create': `Tạo bài viết | ${siteName}`,
-      '/admin/settings': `Cài đặt | ${siteName}`,
-      '/admin/users': `Người dùng | ${siteName}`,
-      '/admin/categories': `Danh mục | ${siteName}`,
-      '/admin/mailbox': `Hộp thư | ${siteName}`
-    };
-    document.title = routeTitles[location.pathname]
-      || (location.pathname.startsWith('/admin/edit/') ? `Chỉnh sửa bài viết | ${siteName}` : baseTitle);
-  }, [location.pathname, settings]);
-
   // Helper: Đảm bảo link ngoài luôn có https://
   const getSafeExternalLink = (path: string) => {
     if (!path) return '#';
@@ -187,6 +167,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <SiteSettingsContext.Provider value={settings}>
+    <SiteSeo settings={settings} />
     <div className="min-h-screen relative flex flex-col font-sans text-slate-800 dark:text-gray-100 overflow-x-hidden transition-colors duration-500 bg-sky-50 dark:bg-slate-950">
       
       {/* Background Logic - Hidden on Admin pages to avoid layout clutter */}

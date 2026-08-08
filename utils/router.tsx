@@ -5,7 +5,7 @@ import {
   Switch,
   useLocation as useWouterLocation,
   useParams,
-  useSearch,
+  useSearch as useWouterSearch,
 } from 'wouter';
 
 export const BrowserRouter = ({ children }: { children: ReactNode }) => children;
@@ -37,7 +37,7 @@ export const useNavigate = () => {
 };
 
 export const useSearchParams = () => {
-  const search = useSearch();
+  const search = useWouterSearch();
   const [, navigate] = useWouterLocation();
   const params = new URLSearchParams(search);
   const setSearchParams = (next: URLSearchParams | Record<string, string>) => {
@@ -49,5 +49,7 @@ export const useSearchParams = () => {
 
   return [params, setSearchParams] as const;
 };
+
+export const useSearch = useWouterSearch;
 
 export { useParams };

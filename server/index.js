@@ -17,6 +17,7 @@ const { detectImageType } = require('./media');
 const { addHeadingIds, parseStringArray } = require('./post-content');
 const { createAutomation } = require('./automation');
 const { ensureAutomationSettings, serializeAutomationSettings } = require('./automation-settings');
+const { createSitemap } = require('./sitemap');
 
 const app = express();
 const port = Number(process.env.PORT || 5001);
@@ -25,6 +26,7 @@ const frontendOrigins = (process.env.FRONTEND_URL || 'http://localhost:4000')
   .map(origin => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 const publicApiUrl = (process.env.PUBLIC_API_URL || `http://localhost:${port}`).replace(/\/$/, '');
+const publicSiteUrl = (process.env.PUBLIC_SITE_URL || frontendOrigins[0] || 'http://localhost:4000').replace(/\/$/, '');
 const passwordRounds = Number(process.env.BCRYPT_ROUNDS || 12);
 const jwtSecret = process.env.JWT_SECRET || (process.env.NODE_ENV !== 'production' ? 'development-only-secret' : '');
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '8h';
@@ -927,6 +929,19 @@ app.get('/api/posts/:id', validateParams(schemas.idParam), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server Error' });
+  }
+});
+
+app.get(['/sitemap.xml', '/api/sitemap.xml'], async (req, res) => {
+  try {
+    const [posts, categories] = await Promise.all([
+      db.query("SELECT id, date, created_at, reviewed_at FROM posts WHERE status='published' ORDER BY created_at DESC"),
+      db.query("SELECT DISTINCT categories.id FROM categories INNER JOIN posts ON posts.category=categories.id WHERE posts.status='published' ORDER BY categories.id")
+    ]);
+    res.type('application/xml').set('Cache-Control', 'public, max-age=300, s-maxage=900').send(createSitemap({ siteUrl: publicSiteUrl, posts: posts.rows, categories: categories.rows }));
+  } catch (err) {
+    console.error('Sitemap Error:', err);
+    res.status(500).type('text/plain').send('Unable to generate sitemap');
   }
 });
 
