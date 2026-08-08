@@ -26,6 +26,22 @@ const query = async (sql, params = []) => {
   return { rows: [], rowCount: result.changes, lastID: result.lastInsertRowid };
 };
 
+const batch = async operations => {
+  const execute = database.transaction(items => items.map(({ sql, params = [], requireChanges = false }) => {
+    const prepared = prepareSql(sql, params);
+    const result = database.prepare(prepared.sql).run(...prepared.params);
+    if (requireChanges && result.changes === 0) {
+      const error = new Error('Transactional operation lost its expected row ownership');
+      error.code = 'TRANSACTION_OWNERSHIP_LOST';
+      throw error;
+    }
+    return { rowCount: result.changes, lastID: result.lastInsertRowid };
+  }));
+  return execute(operations);
+};
+
+const close = () => database.close();
+
 const decodeCopyValue = (value) => {
   if (value === '\\N') return null;
 
@@ -116,6 +132,8 @@ const importPostgresDump = (sql) => {
 
 module.exports = {
   databasePath,
+  batch,
+  close,
   importPostgresDump,
   query
 };

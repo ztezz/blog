@@ -361,6 +361,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
   let heartbeatTimer = null;
   let deadlineTimer = null;
   let startResolver = null;
+  let progressWrite = Promise.resolve();
   const reportStart = result => {
     if (startResolver) startResolver(result);
     startResolver = null;
@@ -369,8 +370,21 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     progress = { stage, message, percent, updatedAt: new Date().toISOString(), ...details };
     if (activeRuntime) {
       activeRuntime.timeline.push({ stage, message, percent, at: progress.updatedAt });
-      db.query('UPDATE ai_automation_runs SET stage=$1, timeline=$2, heartbeat_at=CURRENT_TIMESTAMP WHERE id=$3 AND status=$4', [stage, JSON.stringify(activeRuntime.timeline), activeRunId, 'running']).catch(error => console.error('[Automation] Failed to persist progress:', error.message));
+      const runId = activeRunId;
+      const timeline = JSON.stringify(activeRuntime.timeline);
+      progressWrite = progressWrite.then(() => db.query('UPDATE ai_automation_runs SET stage=$1, timeline=$2, heartbeat_at=CURRENT_TIMESTAMP WHERE id=$3 AND status=$4', [stage, timeline, runId, 'running'])).catch(error => console.error('[Automation] Failed to persist progress:', error.message));
     }
+  };
+  const flushProgress = () => progressWrite;
+  const executeBatch = async operations => {
+    if (typeof db.batch === 'function') return db.batch(operations);
+    const results = [];
+    for (const operation of operations) {
+      const result = await db.query(operation.sql, operation.params || []);
+      if (operation.requireChanges && result.rowCount === 0) throw automationError('TRANSACTION_OWNERSHIP_LOST', 'Automation run lost database ownership before finalization');
+      results.push(result);
+    }
+    return results;
   };
   const fallbackConfig = {
     enabled: env.AI_AUTOMATION_ENABLED === 'true',
@@ -977,10 +991,10 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
             rethrowInterruption(error, signal);
             verification = { supported: 0, partial: 0, unsupported: 0, invalidCitations: [], assessments: [], hardFailures: [`Không thể hoàn tất kiểm chứng: ${error.message || error}`] };
           }
-          updateProgress('publishing', 'Đã kiểm chứng dữ kiện. Đang chấm chất lượng và lưu bài...', 90, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
           const validCategory = categories.some(category => category.id === generated.category) ? generated.category : categories[0]?.id || 'space-tech';
           updateProgress('imaging', config.imageGenerationEnabled ? `Đang tạo ảnh bằng ${config.imageModel}...` : 'Đang xử lý ảnh minh họa...', 87, { diagnostics: { ...diagnostics }, currentSource: candidate.url, model: config.imageModel });
           const generatedImages = await generateArticleImages(config, generated, validCategory, signal);
+          updateProgress('publishing', 'Đã xử lý ảnh. Đang chấm chất lượng và lưu bài...', 90, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
           const sourceBlock = `<hr><h2>Nguồn tham khảo</h2><ol>${articles.map((source, sourceIndex) => `<li><a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer nofollow">[S${sourceIndex + 1}] ${escapeHtml(source.title || new URL(source.url).hostname)}</a></li>`).join('')}</ol><p>Bài viết được AI tổng hợp, đối chiếu và biên tập lại từ các nguồn trên.</p>`;
           const generatedPlacements = generatedImages.contentImages.map(image => ({ imageId: image.id, afterHeading: image.afterHeading, alt: image.alt, caption: image.caption }));
           const contextual = insertContextualImages(generated.content, [...generated.imagePlacements, ...generatedPlacements], [...storedImages.slice(1), ...generatedImages.contentImages]);
@@ -996,17 +1010,15 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           const postStatus = config.approvalMode === 'quality_gate' && quality.score >= config.qualityThreshold && quality.hardFailures.length === 0 ? 'published' : 'draft';
           const hash = createHash('sha256').update(candidate.url).digest('hex').slice(0, 16);
           const postId = `ai-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${hash}-${randomUUID().slice(0, 8)}`.slice(0, 50);
-          await db.query(
-            `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time, status, quality_score, quality_report, source_url, source_urls, seo_title, meta_description, keywords, image_alt, image_caption)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
-            [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), generatedImages.titleImage?.url || storedImages[0]?.url || config.defaultImageUrl, readingTime(content), postStatus, quality.score, JSON.stringify(quality), candidate.url, JSON.stringify(sourceUrls), generated.seoTitle, generated.metaDescription, JSON.stringify(generated.keywords), generatedImages.titleImage?.alt || generated.imageAlt, generatedImages.titleImage?.caption || generated.imageCaption]
-          );
-          for (const sourceUrl of sourceUrls) {
-            if (!reusingSources) await db.query("UPDATE ai_generation_log SET status=$1, post_id=$2, published_at=CASE WHEN $1='published' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE source_url=$3 AND run_id=$4", [postStatus, postId, sourceUrl, activeRunId]);
-          }
           lastResult = { status: postStatus, postId, sourceUrl: candidate.url, sourceCount: sourceUrls.length, title: generated.title, qualityScore: quality.score, model: generated.gatewayModel, attempts: generated.gatewayAttempts + (verification.attempts || 0), completedAt: new Date().toISOString() };
           updateProgress('completed', postStatus === 'published' ? 'Đã đăng bài viết thành công.' : `Đã lưu bản nháp với điểm chất lượng ${quality.score}/100.`, 100, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
-          await db.query('UPDATE ai_automation_runs SET status=$1, stage=$2, post_id=$3, title=$4, model=$5, attempts=$6, quality_score=$7, source_count=$8, diagnostics=$9, source_urls=$10, model_calls=$11, sources_attempted=$12, timeline=$13, completed_at=CURRENT_TIMESTAMP WHERE id=$14', [postStatus, 'completed', postId, generated.title, generated.gatewayModel, lastResult.attempts, quality.score, sourceUrls.length, JSON.stringify(diagnostics), JSON.stringify(sourceUrls), activeRuntime.modelCalls, activeRuntime.sourcesAttempted, JSON.stringify(activeRuntime.timeline), activeRunId]);
+          await flushProgress();
+          const finalOperations = [
+            { sql: 'UPDATE ai_automation_runs SET status=$1, stage=$2, post_id=$3, title=$4, model=$5, attempts=$6, quality_score=$7, source_count=$8, diagnostics=$9, source_urls=$10, model_calls=$11, sources_attempted=$12, timeline=$13, completed_at=CURRENT_TIMESTAMP WHERE id=$14 AND status=$15', params: [postStatus, 'completed', postId, generated.title, generated.gatewayModel, lastResult.attempts, quality.score, sourceUrls.length, JSON.stringify(diagnostics), JSON.stringify(sourceUrls), activeRuntime.modelCalls, activeRuntime.sourcesAttempted, JSON.stringify(activeRuntime.timeline), activeRunId, 'running'], requireChanges: true },
+            { sql: `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time, status, quality_score, quality_report, source_url, source_urls, seo_title, meta_description, keywords, image_alt, image_caption) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`, params: [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), generatedImages.titleImage?.url || storedImages[0]?.url || config.defaultImageUrl, readingTime(content), postStatus, quality.score, JSON.stringify(quality), candidate.url, JSON.stringify(sourceUrls), generated.seoTitle, generated.metaDescription, JSON.stringify(generated.keywords), generatedImages.titleImage?.alt || generated.imageAlt, generatedImages.titleImage?.caption || generated.imageCaption] }
+          ];
+          if (!reusingSources) sourceUrls.forEach(sourceUrl => finalOperations.push({ sql: "UPDATE ai_generation_log SET status=$1, post_id=$2, published_at=CASE WHEN $1='published' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE source_url=$3 AND run_id=$4 AND status='processing'", params: [postStatus, postId, sourceUrl, activeRunId], requireChanges: true }));
+          await executeBatch(finalOperations);
           return lastResult;
         } catch (error) {
           if (isCancellation(error)) {

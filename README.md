@@ -116,6 +116,7 @@ AI_WEBSITE_URLS=https://example.com/news
 - URL và hash nội dung nguồn được chống trùng bằng bảng `ai_generation_log`, tránh đăng lại cùng một tin được syndicate qua nhiều website; nhiều process không thể đồng thời nhận cùng một nguồn. Lỗi nguồn được ghi lại để nguồn khác vẫn tiếp tục.
 - Endpoint admin: `GET/POST /api/automation/settings`, `GET /api/automation/status`, `GET /api/automation/history`, `POST /api/automation/run`.
 - Mỗi lượt chạy có heartbeat, deadline và ngân sách riêng cho số nguồn, số lượt gọi model và tổng thời gian. Backend tự đánh dấu run mất heartbeat là gián đoạn, giải phóng đúng source thuộc run đó và không cần dọn toàn bộ hàng đợi.
+- Bước hoàn tất được commit bằng một transaction SQLite: xác nhận run vẫn giữ lease, lưu bài, cập nhật source log và đóng run cùng lúc. Nếu một bước mất ownership hoặc lỗi database, toàn bộ thay đổi được rollback để tránh bài mồ côi và lịch sử sai trạng thái.
 - Dashboard lưu timeline, structured error, model calls và source attempts cho từng run. Có thể mở chi tiết 10 lượt gần nhất và chạy lại source cũ với model override hoặc tắt ảnh mà không thay đổi cấu hình toàn cục.
 - Nút **Kiểm tra kết nối** không chỉ đọc danh sách model mà còn gọi schema probe `{ "ok": true }`, cho biết model có hỗ trợ JSON mode trực tiếp hay phải dùng fallback.
 - Khi model trả JSON sai schema, backend cho phép đúng một lượt sửa cấu trúc với `temperature: 0`; lượt sửa không được thêm dữ kiện, URL hoặc citation mới. JSON vẫn sai sẽ dừng toàn lượt với danh sách trường lỗi rút gọn.
