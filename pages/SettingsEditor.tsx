@@ -670,6 +670,17 @@ const SettingsEditor: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  <div className="md:col-span-2 rounded-xl border border-fuchsia-200 bg-fuchsia-50 p-4 dark:border-fuchsia-500/20 dark:bg-fuchsia-500/10">
+                    <label className="flex items-center gap-3 font-bold text-fuchsia-900 dark:text-fuchsia-200">
+                      <input type="checkbox" checked={automationSettings.imageGenerationEnabled} onChange={event => setAutomationSettings({ ...automationSettings, imageGenerationEnabled: event.target.checked })} />
+                      Tạo ảnh minh họa bằng 9Router
+                    </label>
+                    <p className="mt-2 text-xs text-fuchsia-700 dark:text-fuchsia-300">Tạo một ảnh tiêu đề và ảnh minh họa theo từng mục. Ảnh được lưu về server, không dùng URL tạm.</p>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block"><span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Model tạo ảnh</span><select value={automationSettings.imageModel} disabled={!automationSettings.imageGenerationEnabled} onChange={event => setAutomationSettings({ ...automationSettings, imageModel: event.target.value })} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 font-mono text-slate-900 disabled:opacity-50 dark:border-white/20 dark:bg-slate-900 dark:text-white"><option value="ag/gemini-3.1-flash-image">ag/gemini-3.1-flash-image</option></select></label>
+                      <label className="block"><span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Số ảnh trong nội dung (0-2)</span><input type="number" min="0" max="2" value={automationSettings.generatedContentImageCount} disabled={!automationSettings.imageGenerationEnabled} onChange={event => setAutomationSettings({ ...automationSettings, generatedContentImageCount: Number(event.target.value) })} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 disabled:opacity-50 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></label>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Tên tác giả</label>
                     <input type="text" value={automationSettings.author} onChange={event => setAutomationSettings({ ...automationSettings, author: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />

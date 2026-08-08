@@ -64,10 +64,14 @@ const schemas = {
     approvalMode: z.enum(['required', 'quality_gate']).optional().default('required'),
     qualityThreshold: z.number().int().min(50).max(100).optional().default(80),
     fallbackModels: z.array(z.string().trim().min(1).max(200)).max(5).optional().default([]),
-    retryCount: z.number().int().min(0).max(3).optional().default(1)
+    retryCount: z.number().int().min(0).max(3).optional().default(1),
+    imageGenerationEnabled: z.boolean().optional().default(false),
+    imageModel: z.string().trim().max(200).optional().default('ag/gemini-3.1-flash-image'),
+    generatedContentImageCount: z.number().int().min(0).max(2).optional().default(1)
   }).superRefine((value, context) => {
     if (value.enabled && !value.model) context.addIssue({ code: 'custom', message: 'Model is required when automation is enabled', path: ['model'] });
     if (value.enabled && value.rssFeeds.length + value.websites.length === 0 && !value.discoveryEnabled) context.addIssue({ code: 'custom', message: 'At least one RSS feed, website or topic discovery must be enabled', path: ['rssFeeds'] });
+    if (value.imageGenerationEnabled && !value.imageModel) context.addIssue({ code: 'custom', message: 'Image model is required when image generation is enabled', path: ['imageModel'] });
   }),
   automationConnectionTest: z.object({
     baseUrl: httpUrl,

@@ -28,6 +28,47 @@ const addHeadingIds = html => {
   return { content: $.html(), toc };
 };
 
+const insertContextualImages = (html, placements, images) => {
+  const $ = cheerio.load(html || '', null, false);
+  const imageMap = new Map(images.map(image => [image.id, image]));
+  const headings = $('h2, h3').toArray();
+  const usedImages = new Set();
+  let placedCount = 0;
+
+  for (const placement of placements) {
+    const image = imageMap.get(placement.imageId);
+    if (!image || usedImages.has(image.id)) continue;
+    const targetSlug = slugifyHeading(placement.afterHeading);
+    const heading = headings.find(element => slugifyHeading($(element).text()) === targetSlug);
+    if (!heading) continue;
+
+    const figure = $('<figure></figure>').attr('data-source-image', image.id);
+    figure.append($('<img>').attr({ src: image.url, alt: placement.alt || image.alt, loading: 'lazy' }));
+    const caption = $('<figcaption></figcaption>').text(placement.caption || image.alt || 'Ảnh minh họa từ nguồn tham khảo.');
+    if (image.articleUrl) {
+      caption.append(' ');
+      caption.append($('<a></a>').attr({ href: image.articleUrl, target: '_blank', rel: 'noopener noreferrer nofollow' }).text('Xem nguồn ảnh'));
+      caption.append('.');
+    }
+    figure.append(caption);
+
+    let insertionPoint = $(heading);
+    let sibling = insertionPoint.next();
+    while (sibling.length && !sibling.is('h2, h3')) {
+      if (sibling.is('p')) {
+        insertionPoint = sibling;
+        break;
+      }
+      sibling = sibling.next();
+    }
+    insertionPoint.after(figure);
+    usedImages.add(image.id);
+    placedCount += 1;
+  }
+
+  return { content: $.html(), placedCount };
+};
+
 const parseStringArray = value => {
   try {
     const parsed = JSON.parse(value || '[]');
@@ -37,4 +78,4 @@ const parseStringArray = value => {
   }
 };
 
-module.exports = { addHeadingIds, parseStringArray, slugifyHeading };
+module.exports = { addHeadingIds, insertContextualImages, parseStringArray, slugifyHeading };

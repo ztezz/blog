@@ -28,6 +28,7 @@ export interface BlogPost {
       assessments?: Array<{ claimIndex: number; text: string; status: 'supported' | 'partial' | 'unsupported'; sourceIds: string[]; note: string }>;
     };
     gateway?: { writerModel?: string; writerAttempts?: number; factCheckModel?: string | null; factCheckAttempts?: number };
+    media?: { imageModel?: string | null; generatedTitleImage?: boolean; generatedContentImages?: number; warnings?: string[] };
   } | null;
   sourceUrl?: string;
   sourceUrls?: string[];
@@ -89,6 +90,9 @@ export interface AutomationSettings {
   qualityThreshold: number;
   fallbackModels: string[];
   retryCount: number;
+  imageGenerationEnabled: boolean;
+  imageModel: string;
+  generatedContentImageCount: number;
 }
 
 export interface AutomationConnectionResult {
@@ -125,7 +129,7 @@ export interface AutomationDiagnostics {
 }
 
 export interface AutomationProgress {
-  stage: 'config' | 'sources' | 'filtering' | 'reading' | 'writing' | 'verifying' | 'publishing' | 'cancelling' | 'cancelled' | 'completed' | 'failed';
+  stage: 'config' | 'sources' | 'filtering' | 'reading' | 'writing' | 'verifying' | 'imaging' | 'publishing' | 'cancelling' | 'cancelled' | 'completed' | 'failed';
   message: string;
   percent: number;
   updatedAt: string;
@@ -140,6 +144,34 @@ export interface AutomationStatus {
   running: boolean;
   progress: AutomationProgress | null;
   lastResult: AutomationRunResult | null;
+}
+
+export interface AutomationRunHistory {
+  id: string;
+  triggerType: 'manual' | 'scheduled';
+  status: AutomationRunResult['status'];
+  stage: string;
+  postId?: string | null;
+  title?: string | null;
+  model?: string | null;
+  attempts: number;
+  qualityScore?: number | null;
+  sourceCount: number;
+  error?: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+}
+
+export interface AutomationStatistics {
+  total: number;
+  published: number;
+  drafts: number;
+  failed: number;
+  cancelled: number;
+  skipped: number;
+  average_quality: number | null;
+  average_duration_seconds: number | null;
+  models: Array<{ model: string; runs: number; attempts: number }>;
 }
 
 export interface User {

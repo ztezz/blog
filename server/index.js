@@ -293,6 +293,26 @@ const initDb = async () => {
     await db.query('CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_generation_content_hash ON ai_generation_log(content_hash) WHERE content_hash IS NOT NULL');
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS ai_automation_runs (
+        id VARCHAR(50) PRIMARY KEY,
+        trigger_type VARCHAR(20) NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        stage VARCHAR(30),
+        post_id VARCHAR(50),
+        title VARCHAR(255),
+        model VARCHAR(200),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        quality_score INTEGER,
+        source_count INTEGER NOT NULL DEFAULT 0,
+        diagnostics TEXT,
+        error TEXT,
+        started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
+      );
+    `);
+    await db.query('CREATE INDEX IF NOT EXISTS idx_ai_automation_runs_started ON ai_automation_runs(started_at DESC)');
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS ai_automation_settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         enabled INTEGER NOT NULL DEFAULT 0,
@@ -334,6 +354,9 @@ const initDb = async () => {
       ['quality_threshold', 'INTEGER NOT NULL DEFAULT 80'],
       ['fallback_models', "TEXT NOT NULL DEFAULT '[]'"],
       ['retry_count', 'INTEGER NOT NULL DEFAULT 1'],
+      ['image_generation_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+      ['image_model', "TEXT NOT NULL DEFAULT 'ag/gemini-3.1-flash-image'"],
+      ['generated_content_image_count', 'INTEGER NOT NULL DEFAULT 1'],
       ['updated_at', 'TIMESTAMP']
     ];
     for (const [column, definition] of settingsMigrations) {
@@ -493,9 +516,10 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
        discovery_enabled=$8, discovery_provider=$9, discovery_model=$10, discovery_topics=$11,
        allowed_domains=$12, blocked_domains=$13, run_hour_utc=$14,
        author=$15, default_image_url=$16, approval_mode=$17, quality_threshold=$18,
-       fallback_models=$19, retry_count=$20, updated_at=CURRENT_TIMESTAMP
+       fallback_models=$19, retry_count=$20, image_generation_enabled=$21,
+       image_model=$22, generated_content_image_count=$23, updated_at=CURRENT_TIMESTAMP
        WHERE id=1`,
-      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount]
+      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount, settings.imageGenerationEnabled ? 1 : 0, settings.imageModel, settings.generatedContentImageCount]
     );
     await automation.reschedule();
     const saved = await ensureAutomationSettings(db);
@@ -512,6 +536,60 @@ app.get('/api/automation/history', authenticate, authorize('admin'), async (req,
       'SELECT source_url, content_hash, status, claimed_at, published_at, post_id, error FROM ai_generation_log ORDER BY claimed_at DESC LIMIT 50'
     );
     return res.json(result.rows);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/automation/runs', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const result = await db.query('SELECT id, trigger_type, status, stage, post_id, title, model, attempts, quality_score, source_count, diagnostics, error, started_at, completed_at FROM ai_automation_runs ORDER BY started_at DESC LIMIT 50');
+    return res.json(result.rows.map(run => ({
+      id: run.id,
+      triggerType: run.trigger_type,
+      status: run.status,
+      stage: run.stage,
+      postId: run.post_id,
+      title: run.title,
+      model: run.model,
+      attempts: run.attempts,
+      qualityScore: run.quality_score,
+      sourceCount: run.source_count,
+      diagnostics: run.diagnostics ? JSON.parse(run.diagnostics) : null,
+      error: run.error,
+      startedAt: run.started_at,
+      completedAt: run.completed_at
+    })));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get('/api/automation/statistics', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const totals = await db.query(`SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN status='published' THEN 1 ELSE 0 END) AS published,
+      SUM(CASE WHEN status='draft' THEN 1 ELSE 0 END) AS drafts,
+      SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed,
+      SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) AS cancelled,
+      SUM(CASE WHEN status='skipped' THEN 1 ELSE 0 END) AS skipped,
+      ROUND(AVG(CASE WHEN quality_score IS NOT NULL THEN quality_score END), 1) AS average_quality,
+      ROUND(AVG(CASE WHEN completed_at IS NOT NULL THEN (julianday(completed_at)-julianday(started_at))*86400 END), 1) AS average_duration_seconds
+      FROM ai_automation_runs`);
+    const models = await db.query("SELECT model, COUNT(*) AS runs, SUM(attempts) AS attempts FROM ai_automation_runs WHERE model IS NOT NULL GROUP BY model ORDER BY runs DESC LIMIT 10");
+    const summary = totals.rows[0] || {};
+    return res.json({
+      total: Number(summary.total || 0),
+      published: Number(summary.published || 0),
+      drafts: Number(summary.drafts || 0),
+      failed: Number(summary.failed || 0),
+      cancelled: Number(summary.cancelled || 0),
+      skipped: Number(summary.skipped || 0),
+      average_quality: summary.average_quality === null ? null : Number(summary.average_quality),
+      average_duration_seconds: summary.average_duration_seconds === null ? null : Number(summary.average_duration_seconds),
+      models: models.rows.map(model => ({ model: model.model, runs: Number(model.runs), attempts: Number(model.attempts) }))
+    });
   } catch (error) {
     return next(error);
   }

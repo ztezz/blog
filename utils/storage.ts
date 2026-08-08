@@ -1,5 +1,5 @@
 
-import { AutomationConnectionResult, AutomationRunResult, AutomationSettings, AutomationStatus, BlogPost, SiteSettings, User, ContactMessage, Category } from '../types';
+import { AutomationConnectionResult, AutomationRunHistory, AutomationRunResult, AutomationSettings, AutomationStatistics, AutomationStatus, BlogPost, SiteSettings, User, ContactMessage, Category } from '../types';
 import { BLOG_POSTS as INITIAL_POSTS, CATEGORIES as INITIAL_CATEGORIES } from '../constants';
 
 // --- Configuration ---
@@ -239,6 +239,9 @@ export const runAutomation = async (): Promise<AutomationRunResult> => {
 export const cancelAutomation = async (): Promise<{ cancelled: boolean; reason?: string }> => {
   return fetchApi<{ cancelled: boolean; reason?: string }>('/automation/cancel', { method: 'POST' });
 };
+
+export const getAutomationRuns = async (): Promise<AutomationRunHistory[]> => fetchApi<AutomationRunHistory[]>('/automation/runs');
+export const getAutomationStatistics = async (): Promise<AutomationStatistics> => fetchApi<AutomationStatistics>('/automation/statistics');
 
 export const saveAutomationSettings = async (settings: AutomationSettings): Promise<AutomationSettings> => {
   return fetchApi<AutomationSettings>('/automation/settings', {

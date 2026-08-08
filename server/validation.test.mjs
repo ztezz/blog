@@ -67,6 +67,8 @@ describe('API request schemas', () => {
     expect(result.model).toBe('writing-combo');
     expect(result.fallbackModels).toEqual([]);
     expect(result.retryCount).toBe(1);
+    expect(result.imageModel).toBe('ag/gemini-3.1-flash-image');
+    expect(result.imageGenerationEnabled).toBe(false);
     expect(schemas.automationSettings.safeParse({ ...result, fallbackModels: Array(6).fill('model') }).success).toBe(false);
     expect(schemas.automationSettings.safeParse({ ...result, discoveryEnabled: false, rssFeeds: [], websites: [] }).success).toBe(false);
     expect(schemas.automationSettings.safeParse({ ...result, rssFeeds: [], websites: [] }).success).toBe(true);

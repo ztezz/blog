@@ -110,7 +110,10 @@ describe('content automation helpers', () => {
             author: 'Database Author',
             default_image_url: 'https://example.com/image.jpg',
             fallback_models: '["backup-model"]',
-            retry_count: 0
+            retry_count: 0,
+            image_generation_enabled: 1,
+            image_model: 'ag/gemini-3.1-flash-image',
+            generated_content_image_count: 1
           }]
         };
         if (sql.includes('INSERT INTO ai_generation_log')) return { rowCount: 1, rows: [] };
@@ -147,9 +150,17 @@ describe('content automation helpers', () => {
             keywords: ['bản đồ Sao Hỏa', 'dữ liệu vệ tinh'],
             imageAlt: 'Bản đồ địa hình Sao Hỏa từ dữ liệu vệ tinh',
             imageCaption: 'Dữ liệu vệ tinh phục vụ nghiên cứu địa hình Sao Hỏa.',
+            imagePlacements: [{ imageId: 'I2', afterHeading: 'Tổng quan', alt: 'Xe tự hành khảo sát Sao Hỏa', caption: 'Xe tự hành thu thập dữ liệu hỗ trợ lập bản đồ địa hình.' }],
             claims: [{ text: 'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình Sao Hỏa.', sourceIds: ['S1'] }]
           }) } }]
         }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (String(url).endsWith('/images/generations')) {
+        const request = JSON.parse(options.body || '{}');
+        expect(request.model).toBe('ag/gemini-3.1-flash-image');
+        expect(request.output_format).toBe('png');
+        const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        return new Response(JSON.stringify({ data: [{ b64_json: png.toString('base64') }] }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       if (String(url).endsWith('/robots.txt')) return new Response('User-agent: *\nAllow: /', { status: 200 });
       if (String(url).includes('/images/')) return new Response(Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]), { status: 200, headers: { 'content-type': 'image/jpeg' } });
@@ -178,11 +189,14 @@ describe('content automation helpers', () => {
     expect(status.progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 1, processedCandidates: 1 });
     expect(postInsert).toBeTruthy();
     expect(postInsert.params[3]).toContain('Nguồn tham khảo');
-    expect(postInsert.params[3]).toContain('Hình ảnh từ nguồn');
+    expect(postInsert.params[3]).not.toContain('Hình ảnh từ nguồn');
     expect(postInsert.params[3]).toContain('https://api.cosmogis.test/api/uploads/ai-');
+    expect(postInsert.params[3].indexOf('Dữ liệu vệ tinh hỗ trợ')).toBeLessThan(postInsert.params[3].indexOf('<figure>'));
+    expect(postInsert.params[3].indexOf('<figure>')).toBeLessThan(postInsert.params[3].indexOf('Nguồn tham khảo'));
+    expect(postInsert.params[3]).toContain('Xem nguồn ảnh');
     expect(postInsert.params[3]).not.toContain('<script');
     expect(postInsert.params[4]).toBe('Database Author');
-    expect(postInsert.params[8]).toMatch(/^https:\/\/api\.cosmogis\.test\/api\/uploads\/ai-.+\.jpg$/);
+    expect(postInsert.params[8]).toMatch(/^https:\/\/api\.cosmogis\.test\/api\/uploads\/ai-generated-.+\.png$/);
     expect(postInsert.params[10]).toBe('draft');
     expect(postInsert.params[11]).toBe(result.qualityScore);
     const qualityReport = JSON.parse(postInsert.params[12]);
@@ -191,9 +205,12 @@ describe('content automation helpers', () => {
     expect(qualityReport.gateway).toMatchObject({ writerModel: 'backup-model', writerAttempts: 2, factCheckModel: 'backup-model', factCheckAttempts: 2 });
     expect(postInsert.params[15]).toBe('Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới');
     expect(postInsert.params[17]).toBe('["bản đồ Sao Hỏa","dữ liệu vệ tinh"]');
-    expect(await fs.readdir(uploadDir)).toHaveLength(2);
+    expect(qualityReport.media).toMatchObject({ imageModel: 'ag/gemini-3.1-flash-image', generatedTitleImage: true, generatedContentImages: 1 });
+    expect(await fs.readdir(uploadDir)).toHaveLength(4);
     expect(fetch).toHaveBeenCalledWith('http://9router.test/v1/chat/completions', expect.anything());
     expect(queries.some(query => query.sql.includes("SET status=$1") && query.params[0] === 'draft')).toBe(true);
+    expect(queries.some(query => query.sql.includes('INSERT INTO ai_automation_runs') && query.params[2] === 'running')).toBe(true);
+    expect(queries.some(query => query.sql.includes('UPDATE ai_automation_runs SET status=$1') && query.params[0] === 'draft')).toBe(true);
   });
 
   it('requires claims to cite an existing source', () => {
@@ -280,6 +297,7 @@ describe('content automation helpers', () => {
     expect(await service.cancel()).toEqual({ cancelled: false, reason: 'not-running' });
     expect((await service.status()).progress).toMatchObject({ stage: 'cancelled', percent: 100 });
     expect(db.query).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO posts'), expect.anything());
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE ai_automation_runs SET status=$1'), ['cancelled', 'cancelled', expect.stringMatching(/^run-/)]);
   });
 
 });

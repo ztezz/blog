@@ -62,6 +62,9 @@ const serializeAutomationSettings = settings => ({
   qualityThreshold: Number(settings.quality_threshold ?? 80)
   ,fallbackModels: parseJsonArray(settings.fallback_models, true)
   ,retryCount: Number(settings.retry_count ?? 1)
+  ,imageGenerationEnabled: Boolean(settings.image_generation_enabled)
+  ,imageModel: settings.image_model || 'ag/gemini-3.1-flash-image'
+  ,generatedContentImageCount: Number(settings.generated_content_image_count ?? 1)
 });
 
 module.exports = { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings, splitList };

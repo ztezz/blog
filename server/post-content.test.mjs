@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import contentModule from './post-content.js';
 
-const { addHeadingIds, slugifyHeading } = contentModule;
+const { addHeadingIds, insertContextualImages, slugifyHeading } = contentModule;
 
 describe('post content helpers', () => {
   it('adds stable unique heading IDs and returns a table of contents', () => {
@@ -17,5 +17,27 @@ describe('post content helpers', () => {
 
   it('creates a safe fallback heading slug', () => {
     expect(slugifyHeading('***')).toBe('muc');
+  });
+
+  it('places a cited image after the first paragraph of its matching section', () => {
+    const result = insertContextualImages(
+      '<h2>Dữ liệu vệ tinh</h2><p>Đoạn dẫn chứng chính.</p><p>Đoạn tiếp theo.</p><h2>Kết luận</h2>',
+      [{ imageId: 'I2', afterHeading: 'Dữ liệu vệ tinh', alt: 'Ảnh vệ tinh', caption: 'Ảnh minh họa dữ liệu vệ tinh.' }],
+      [{ id: 'I2', url: '/uploads/satellite.jpg', alt: 'Ảnh vệ tinh', articleUrl: 'https://example.com/source' }]
+    );
+    expect(result.placedCount).toBe(1);
+    expect(result.content.indexOf('Đoạn dẫn chứng chính')).toBeLessThan(result.content.indexOf('<figure'));
+    expect(result.content.indexOf('<figure')).toBeLessThan(result.content.indexOf('Đoạn tiếp theo'));
+    expect(result.content).toContain('href="https://example.com/source"');
+  });
+
+  it('drops invalid and duplicate image placements instead of appending them', () => {
+    const result = insertContextualImages(
+      '<h2>Mục hợp lệ</h2><p>Nội dung.</p>',
+      [{ imageId: 'I1', afterHeading: 'Không tồn tại', alt: 'Ảnh', caption: 'Chú thích' }, { imageId: 'I1', afterHeading: 'Mục hợp lệ', alt: 'Ảnh', caption: 'Chú thích' }, { imageId: 'I1', afterHeading: 'Mục hợp lệ', alt: 'Ảnh', caption: 'Chú thích' }],
+      [{ id: 'I1', url: '/uploads/image.jpg', alt: 'Ảnh', articleUrl: '' }]
+    );
+    expect(result.placedCount).toBe(1);
+    expect((result.content.match(/<figure/g) || [])).toHaveLength(1);
   });
 });

@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from '../utils/router';
-import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send, ClipboardCheck, ExternalLink, Octagon } from 'lucide-react';
-import { API_URL, approveDraftPost, cancelAutomation, getPosts, deletePost, getCurrentUser, getAutomationStatus, getDraftPosts, logout, isAuthenticated, rejectDraftPost, runAutomation } from '../utils/storage';
-import { AutomationStatus, BlogPost } from '../types';
+import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send, ClipboardCheck, ExternalLink, Octagon, Activity, BarChart3 } from 'lucide-react';
+import { API_URL, approveDraftPost, cancelAutomation, getPosts, deletePost, getCurrentUser, getAutomationRuns, getAutomationStatistics, getAutomationStatus, getDraftPosts, logout, isAuthenticated, rejectDraftPost, runAutomation } from '../utils/storage';
+import { AutomationRunHistory, AutomationStatistics, AutomationStatus, BlogPost } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -14,6 +14,8 @@ const AdminDashboard: React.FC = () => {
   const [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(null);
   const [automationError, setAutomationError] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
+  const [automationRuns, setAutomationRuns] = useState<AutomationRunHistory[]>([]);
+  const [automationStatistics, setAutomationStatistics] = useState<AutomationStatistics | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -21,7 +23,7 @@ const AdminDashboard: React.FC = () => {
       navigate('/admin');
       return;
     }
-    void Promise.all([loadPosts(), loadDrafts()]);
+    void Promise.all([loadPosts(), loadDrafts(), loadAutomationInsights()]);
   }, [navigate]);
 
   useEffect(() => {
@@ -95,6 +97,17 @@ const AdminDashboard: React.FC = () => {
     try { setDrafts(await getDraftPosts()); } catch { setDrafts([]); }
   };
 
+  const loadAutomationInsights = async () => {
+    if (getCurrentUser()?.role !== 'admin') return;
+    try {
+      const [runs, statistics] = await Promise.all([getAutomationRuns(), getAutomationStatistics()]);
+      setAutomationRuns(runs);
+      setAutomationStatistics(statistics);
+    } catch {
+      // Operational insights are supplementary to the main dashboard.
+    }
+  };
+
   const handleDraftAction = async (id: string, action: 'approve' | 'reject') => {
     setAutomationError('');
     try {
@@ -126,6 +139,7 @@ const AdminDashboard: React.FC = () => {
       setAutomationStatus(await getAutomationStatus());
       if (result.status === 'published') await loadPosts();
       if (result.status === 'draft') await loadDrafts();
+      await loadAutomationInsights();
     } catch (error) {
       setAutomationError(error instanceof Error ? error.message : 'Không thể tạo bài viết AI');
       try {
@@ -252,7 +266,7 @@ const AdminDashboard: React.FC = () => {
                   { key: 'writing', label: 'Viết & kiểm chứng', icon: Cpu },
                   { key: 'publishing', label: 'Đăng bài', icon: Send }
                 ];
-                const stageOrder = ['config', 'sources', 'filtering', 'reading', 'writing', 'verifying', 'publishing', 'completed'];
+                const stageOrder = ['config', 'sources', 'filtering', 'reading', 'writing', 'verifying', 'imaging', 'publishing', 'completed'];
                 const currentIndex = stageOrder.indexOf(progress?.stage || 'config');
                 return (
                   <div className="space-y-6">
@@ -270,7 +284,7 @@ const AdminDashboard: React.FC = () => {
                       {stages.map(({ key, label, icon: Icon }) => {
                         const index = stageOrder.indexOf(key);
                         const done = progress?.stage === 'completed' || currentIndex > index;
-                        const active = progress?.stage !== 'failed' && (progress?.stage === key || (key === 'reading' && progress?.stage === 'filtering') || (key === 'writing' && progress?.stage === 'verifying'));
+                        const active = progress?.stage !== 'failed' && (progress?.stage === key || (key === 'reading' && progress?.stage === 'filtering') || (key === 'writing' && progress?.stage === 'verifying') || (key === 'publishing' && progress?.stage === 'imaging'));
                         return <div key={key} className={`flex items-center gap-3 rounded-xl border p-3 ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : active ? 'border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300' : 'border-slate-200 text-slate-400 dark:border-white/10 dark:text-gray-500'}`}>{done ? <CheckCircle2 size={18} /> : active ? <LoaderCircle className="animate-spin" size={18} /> : <Icon size={18} />}<span className="text-sm font-bold">{label}</span></div>;
                       })}
                     </div>
@@ -316,6 +330,7 @@ const AdminDashboard: React.FC = () => {
                     <p className="mt-1 line-clamp-2 text-sm text-slate-500 dark:text-gray-400">{draft.excerpt}</p>
                     {draft.qualityReport?.verification && <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">Kiểm chứng: <span className="font-bold text-emerald-600">{draft.qualityReport.verification.supported} đạt</span> · <span className="font-bold text-amber-600">{draft.qualityReport.verification.partial} một phần</span> · <span className="font-bold text-red-600">{draft.qualityReport.verification.unsupported} không đạt</span></p>}
                     {draft.qualityReport?.gateway && <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">9Router: {draft.qualityReport.gateway.writerModel} ({draft.qualityReport.gateway.writerAttempts || 1} lượt) · kiểm chứng {draft.qualityReport.gateway.factCheckModel || 'không có'}</p>}
+                    {draft.qualityReport?.media?.generatedTitleImage && <p className="mt-1 text-xs text-fuchsia-600">Ảnh AI: {draft.qualityReport.media.imageModel} · {draft.qualityReport.media.generatedContentImages || 0} ảnh trong bài</p>}
                     {!!draft.qualityReport?.hardFailures?.length && <p className="mt-2 text-xs font-bold text-red-600">Cần xem lại: {draft.qualityReport.hardFailures.join('; ')}</p>}
                     {draft.sourceUrl && <a href={draft.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center text-xs text-sky-600 hover:underline">Xem nguồn <ExternalLink className="ml-1" size={12} /></a>}
                   </div>
@@ -328,6 +343,41 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 </article>
               ))}
+            </div>
+          </section>
+        )}
+
+        {getCurrentUser()?.role === 'admin' && automationStatistics && (
+          <section className="mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-white/10 dark:bg-slate-800" aria-labelledby="automation-insights-title">
+            <div className="flex items-center justify-between border-b border-slate-200 p-5 dark:border-white/10">
+              <div><h2 id="automation-insights-title" className="flex items-center text-xl font-bold text-slate-900 dark:text-white"><BarChart3 className="mr-2 text-purple-600" size={22} /> Vận hành AI</h2><p className="mt-1 text-sm text-slate-500 dark:text-gray-400">Lịch sử được lưu trong SQLite và không mất khi khởi động lại server.</p></div>
+              <button type="button" onClick={loadAutomationInsights} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 dark:border-white/20 dark:text-gray-300 dark:hover:bg-white/10">Làm mới</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 lg:grid-cols-6">
+              {[
+                ['Tổng lượt', automationStatistics.total, 'text-slate-900 dark:text-white'],
+                ['Đã đăng', automationStatistics.published, 'text-emerald-600'],
+                ['Bản nháp', automationStatistics.drafts, 'text-sky-600'],
+                ['Thất bại', automationStatistics.failed, 'text-red-600'],
+                ['Đã dừng', automationStatistics.cancelled, 'text-amber-600'],
+                ['Điểm TB', automationStatistics.average_quality ?? '-', 'text-purple-600']
+              ].map(([label, value, color]) => <div key={String(label)} className="rounded-xl border border-slate-200 p-4 text-center dark:border-white/10"><p className={`text-2xl font-bold ${color}`}>{value}</p><p className="mt-1 text-xs text-slate-500 dark:text-gray-400">{label}</p></div>)}
+            </div>
+            <div className="border-t border-slate-200 dark:border-white/10">
+              <div className="flex items-center px-5 py-4"><Activity className="mr-2 text-purple-600" size={18} /><h3 className="font-bold text-slate-900 dark:text-white">10 lượt gần nhất</h3>{automationStatistics.average_duration_seconds !== null && <span className="ml-auto text-xs text-slate-500">Trung bình {Math.round(automationStatistics.average_duration_seconds)} giây/lượt</span>}</div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-900"><tr><th className="px-5 py-3">Thời gian</th><th className="px-5 py-3">Kết quả</th><th className="px-5 py-3">Bài viết</th><th className="px-5 py-3">Model</th><th className="px-5 py-3">Nguồn</th><th className="px-5 py-3">Điểm</th><th className="px-5 py-3">Thời lượng</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                    {automationRuns.slice(0, 10).map(run => {
+                      const duration = run.completedAt ? Math.max(0, Math.round((new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)) : null;
+                      const statusColor = run.status === 'published' ? 'text-emerald-600' : run.status === 'draft' ? 'text-sky-600' : run.status === 'failed' ? 'text-red-600' : 'text-amber-600';
+                      return <tr key={run.id}><td className="px-5 py-3 text-slate-500">{new Date(run.startedAt).toLocaleString('vi-VN')}<span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] dark:bg-white/10">{run.triggerType === 'scheduled' ? 'Lịch' : 'Thủ công'}</span></td><td className={`px-5 py-3 font-bold ${statusColor}`}>{run.status}</td><td className="max-w-[220px] truncate px-5 py-3 text-slate-800 dark:text-gray-200" title={run.title || run.error || ''}>{run.title || run.error || '-'}</td><td className="px-5 py-3 font-mono text-xs text-slate-500">{run.model || '-'}{run.attempts > 0 && ` · ${run.attempts} lượt`}</td><td className="px-5 py-3 text-slate-500">{run.sourceCount}</td><td className="px-5 py-3 font-bold text-purple-600">{run.qualityScore ?? '-'}</td><td className="px-5 py-3 text-slate-500">{duration === null ? 'Đang chạy' : `${duration}s`}</td></tr>;
+                    })}
+                    {automationRuns.length === 0 && <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-500">Chưa có lịch sử chạy AI.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </section>
         )}
