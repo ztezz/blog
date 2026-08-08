@@ -1,14 +1,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from '../utils/router';
-import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles } from 'lucide-react';
-import { API_URL, getPosts, deletePost, getCurrentUser, logout, isAuthenticated } from '../utils/storage';
-import { BlogPost } from '../types';
+import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send } from 'lucide-react';
+import { API_URL, getPosts, deletePost, getCurrentUser, getAutomationStatus, logout, isAuthenticated, runAutomation } from '../utils/storage';
+import { AutomationStatus, BlogPost } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [isRestoring, setIsRestoring] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showAiControl, setShowAiControl] = useState(false);
+  const [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(null);
+  const [automationError, setAutomationError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,6 +21,28 @@ const AdminDashboard: React.FC = () => {
     }
     loadPosts();
   }, [navigate]);
+
+  useEffect(() => {
+    if (!showAiControl && !isGenerating) return;
+    let active = true;
+    const refreshStatus = async () => {
+      try {
+        const status = await getAutomationStatus();
+        if (active) {
+          setAutomationStatus(status);
+          setIsGenerating(status.running);
+        }
+      } catch (error) {
+        if (active) setAutomationError(error instanceof Error ? error.message : 'Không thể tải tiến trình AI');
+      }
+    };
+    void refreshStatus();
+    const interval = window.setInterval(refreshStatus, 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [showAiControl, isGenerating]);
 
   const loadPosts = async () => {
     const data = await getPosts();
@@ -64,42 +89,34 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleGeneratePost = async () => {
-    if (!window.confirm('Tạo và đăng ngay một bài viết AI từ nguồn mới nhất?')) return;
-    setIsGenerating(true);
+  const openAiControl = async () => {
+    setShowAiControl(true);
+    setAutomationError('');
     try {
-      const token = getCurrentUser()?.token;
-      const response = await fetch(`${API_URL}/automation/run`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Không thể tạo bài viết AI');
-      if (data.status === 'published') {
-        alert(`Đã đăng bài AI: ${data.title}`);
+      const status = await getAutomationStatus();
+      setAutomationStatus(status);
+      setIsGenerating(status.running);
+    } catch (error) {
+      setAutomationError(error instanceof Error ? error.message : 'Không thể tải trạng thái AI');
+    }
+  };
+
+  const handleGeneratePost = async () => {
+    setIsGenerating(true);
+    setAutomationError('');
+    try {
+      const result = await runAutomation();
+      setAutomationStatus(await getAutomationStatus());
+      if (result.status === 'published') {
         await loadPosts();
-      } else {
-        if (data.reason === 'no-new-source' && data.diagnostics) {
-          const diagnostics = data.diagnostics;
-          const lines = [
-            'Không tạo được bài mới.',
-            `DuckDuckGo tìm thấy: ${diagnostics.discoveryFound || 0}`,
-            `Bị lọc bởi domain: ${diagnostics.discoveryRejected || 0}`,
-            `Bài từ RSS: ${diagnostics.rssItems || 0}`,
-            `Link từ website: ${diagnostics.websiteLinks || 0}`,
-            `Tổng URL ứng viên: ${diagnostics.candidates || 0}`,
-            `Đã xử lý trước đó: ${diagnostics.alreadyProcessed || 0}`,
-            `Trùng nội dung: ${diagnostics.duplicates || 0}`,
-            `Crawl/AI thất bại: ${diagnostics.failed || 0}`,
-          ];
-          if (diagnostics.errors?.length) lines.push('', 'Lỗi gần nhất:', ...diagnostics.errors);
-          alert(lines.join('\n'));
-        } else {
-          alert('Một lượt tạo bài đang chạy.');
-        }
       }
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Không thể tạo bài viết AI');
+      setAutomationError(error instanceof Error ? error.message : 'Không thể tạo bài viết AI');
+      try {
+        setAutomationStatus(await getAutomationStatus());
+      } catch {
+        // Keep the original run error visible.
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -148,12 +165,11 @@ const AdminDashboard: React.FC = () => {
             </Link>
 
             <button
-              onClick={handleGeneratePost}
-              disabled={isGenerating}
-              className={`flex items-center px-4 py-2 ${isGenerating ? 'bg-gray-300 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded font-bold transition-colors`}
+              onClick={openAiControl}
+              className="flex items-center rounded bg-purple-600 px-4 py-2 font-bold text-white transition-colors hover:bg-purple-700"
               title="Lấy nguồn mới và đăng bài bằng AI"
             >
-              <Sparkles size={18} className="mr-2" /> {isGenerating ? 'AI đang viết...' : 'Tạo bài AI'}
+              {isGenerating ? <LoaderCircle size={18} className="mr-2 animate-spin" /> : <Sparkles size={18} className="mr-2" />} {isGenerating ? 'Xem tiến trình AI' : 'Tạo bài AI'}
             </button>
 
             <button 
@@ -173,6 +189,80 @@ const AdminDashboard: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {showAiControl && (
+          <section className="mb-8 overflow-hidden rounded-2xl border border-purple-200 bg-white shadow-xl dark:border-purple-500/20 dark:bg-slate-800" aria-labelledby="ai-control-title">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-purple-50 to-sky-50 p-5 dark:border-white/10 dark:from-purple-950/50 dark:to-slate-900">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl bg-purple-600 p-2.5 text-white shadow-lg shadow-purple-500/20"><Sparkles size={22} /></div>
+                <div>
+                  <h2 id="ai-control-title" className="text-xl font-bold text-slate-900 dark:text-white">Trung tâm tạo bài AI</h2>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-gray-300">Theo dõi từ lúc tìm nguồn đến khi 9Router hoàn tất và đăng bài.</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setShowAiControl(false)} disabled={isGenerating} className="rounded-lg p-2 text-slate-500 transition hover:bg-black/5 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-white" aria-label="Đóng bảng điều khiển AI"><X size={20} /></button>
+            </div>
+
+            <div className="p-5 sm:p-6">
+              {!isGenerating && automationStatus?.progress?.stage !== 'completed' && automationStatus?.progress?.stage !== 'failed' && !automationError && (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-white">Sẵn sàng tạo và đăng một bài viết mới</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">Hệ thống sẽ tìm nguồn mới, kiểm tra trùng lặp, gửi nội dung qua 9Router và tự đăng bài.</p>
+                  </div>
+                  <button type="button" onClick={handleGeneratePost} className="inline-flex shrink-0 items-center justify-center rounded-xl bg-purple-600 px-5 py-3 font-bold text-white shadow-lg shadow-purple-600/20 transition hover:bg-purple-700"><Sparkles className="mr-2" size={18} /> Bắt đầu tạo bài</button>
+                </div>
+              )}
+
+              {(isGenerating || automationStatus?.progress) && (() => {
+                const progress = automationStatus?.progress;
+                const diagnostics = progress?.diagnostics || automationStatus?.lastResult?.diagnostics;
+                const stages = [
+                  { key: 'sources', label: 'Tìm nguồn', icon: Search },
+                  { key: 'reading', label: 'Đọc và lọc', icon: FileText },
+                  { key: 'writing', label: '9Router viết', icon: Cpu },
+                  { key: 'publishing', label: 'Đăng bài', icon: Send }
+                ];
+                const stageOrder = ['config', 'sources', 'filtering', 'reading', 'writing', 'publishing', 'completed'];
+                const currentIndex = stageOrder.indexOf(progress?.stage || 'config');
+                return (
+                  <div className="space-y-6">
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                        <span className="font-bold text-purple-700 dark:text-purple-300">{progress?.message || 'Đang khởi động lượt tạo bài...'}</span>
+                        <span className="font-mono font-bold text-slate-500 dark:text-gray-400">{progress?.percent || 0}%</span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-950">
+                        <div className={`h-full rounded-full transition-all duration-500 ${progress?.stage === 'failed' ? 'bg-red-500' : 'bg-gradient-to-r from-purple-600 to-sky-500'}`} style={{ width: `${progress?.percent || 3}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                      {stages.map(({ key, label, icon: Icon }) => {
+                        const index = stageOrder.indexOf(key);
+                        const done = progress?.stage === 'completed' || currentIndex > index;
+                        const active = progress?.stage !== 'failed' && (progress?.stage === key || (key === 'reading' && progress?.stage === 'filtering'));
+                        return <div key={key} className={`flex items-center gap-3 rounded-xl border p-3 ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : active ? 'border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300' : 'border-slate-200 text-slate-400 dark:border-white/10 dark:text-gray-500'}`}>{done ? <CheckCircle2 size={18} /> : active ? <LoaderCircle className="animate-spin" size={18} /> : <Icon size={18} />}<span className="text-sm font-bold">{label}</span></div>;
+                      })}
+                    </div>
+
+                    {progress?.currentSource && <div className="rounded-lg bg-slate-100 px-4 py-3 dark:bg-slate-900"><p className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Nguồn đang xử lý</p><p className="truncate font-mono text-xs text-sky-700 dark:text-cyan-300" title={progress.currentSource}>{progress.currentSource}</p></div>}
+
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+                      {[['DuckDuckGo', diagnostics?.discoveryFound], ['Bị lọc', diagnostics?.discoveryRejected], ['RSS', diagnostics?.rssItems], ['Website', diagnostics?.websiteLinks], ['Ứng viên', diagnostics?.candidates], ['Đã xử lý', diagnostics?.alreadyProcessed], ['Trùng', diagnostics?.duplicates], ['Lỗi', diagnostics?.failed]].map(([label, value]) => <div key={String(label)} className="rounded-lg border border-slate-200 p-3 text-center dark:border-white/10"><p className="text-xl font-bold text-slate-900 dark:text-white">{value || 0}</p><p className="mt-1 text-xs text-slate-500 dark:text-gray-400">{label}</p></div>)}
+                    </div>
+
+                    {automationStatus?.lastResult?.status === 'published' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"><CheckCircle2 className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đăng bài thành công</p><p className="mt-1 text-sm">{automationStatus.lastResult.title}</p></div></div>}
+                    {automationStatus?.lastResult?.status === 'skipped' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><AlertCircle className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Chưa tạo được bài mới</p><p className="mt-1 text-sm">Đã kiểm tra các nguồn nhưng không có nội dung mới phù hợp.</p></div></div>}
+                    {!isGenerating && <div className="flex justify-end"><button type="button" onClick={handleGeneratePost} className="inline-flex items-center rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-purple-700"><Sparkles className="mr-2" size={17} /> Chạy lượt mới</button></div>}
+                  </div>
+                );
+              })()}
+
+              {automationError && <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200" role="alert"><AlertCircle className="mt-0.5 shrink-0" size={21} /><div className="min-w-0"><p className="font-bold">Không thể hoàn tất lượt tạo bài</p><p className="mt-1 whitespace-pre-wrap break-words text-sm">{automationError}</p></div></div>}
+            </div>
+          </section>
+        )}
 
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-lg dark:shadow-none">
           <div className="overflow-x-auto">

@@ -73,20 +73,41 @@ export interface AutomationConnectionResult {
 
 export interface AutomationRunResult {
   status: 'published' | 'skipped' | 'failed';
-  completedAt: string;
+  completedAt?: string;
   postId?: string;
   title?: string;
   reason?: string;
   error?: string;
-  diagnostics?: {
-    failed?: number;
-    errors?: string[];
-  };
+  diagnostics?: AutomationDiagnostics;
+}
+
+export interface AutomationDiagnostics {
+  discoveryFound?: number;
+  discoveryRejected?: number;
+  rssItems?: number;
+  websiteLinks?: number;
+  candidates?: number;
+  alreadyProcessed?: number;
+  duplicates?: number;
+  failed?: number;
+  errors?: string[];
+}
+
+export interface AutomationProgress {
+  stage: 'config' | 'sources' | 'filtering' | 'reading' | 'writing' | 'publishing' | 'completed' | 'failed';
+  message: string;
+  percent: number;
+  updatedAt: string;
+  currentSource?: string;
+  totalCandidates?: number;
+  processedCandidates?: number;
+  diagnostics?: AutomationDiagnostics;
 }
 
 export interface AutomationStatus {
   enabled: boolean;
   running: boolean;
+  progress: AutomationProgress | null;
   lastResult: AutomationRunResult | null;
 }
 

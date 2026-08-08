@@ -121,6 +121,9 @@ describe('content automation helpers', () => {
     const postInsert = queries.find(query => query.sql.includes('INSERT INTO posts'));
 
     expect(result.status).toBe('published');
+    const status = await service.status();
+    expect(status.running).toBe(false);
+    expect(status.progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 1, processedCandidates: 1 });
     expect(postInsert).toBeTruthy();
     expect(postInsert.params[3]).toContain('Nguồn tham khảo');
     expect(postInsert.params[3]).not.toContain('<script');
@@ -158,11 +161,13 @@ describe('content automation helpers', () => {
     };
     vi.stubGlobal('fetch', vi.fn(async () => new Response('<html><body>No results</body></html>', { status: 200 })));
 
-    const result = await createAutomation({ db }).run();
+    const service = createAutomation({ db });
+    const result = await service.run();
     expect(result).toMatchObject({
       status: 'skipped',
       reason: 'no-new-source',
       diagnostics: { discoveryFound: 0, candidates: 0, failed: 0 }
     });
+    expect((await service.status()).progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 0 });
   });
 });

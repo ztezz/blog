@@ -186,6 +186,10 @@ const createAutomation = ({ db, env = process.env }) => {
   let running = false;
   let timer = null;
   let lastResult = null;
+  let progress = null;
+  const updateProgress = (stage, message, percent, details = {}) => {
+    progress = { stage, message, percent, updatedAt: new Date().toISOString(), ...details };
+  };
   const fallbackConfig = {
     enabled: env.AI_AUTOMATION_ENABLED === 'true',
     baseUrl: (env.AI_BASE_URL || 'http://localhost:20128/v1').replace(/\/$/, ''),
@@ -360,6 +364,7 @@ const createAutomation = ({ db, env = process.env }) => {
   const run = async () => {
     if (running) return { status: 'skipped', reason: 'already-running' };
     running = true;
+    updateProgress('config', 'Đang tải và kiểm tra cấu hình AI...', 5);
     try {
       const config = await loadConfig();
       validateConfig(config);
@@ -374,8 +379,11 @@ const createAutomation = ({ db, env = process.env }) => {
         failed: 0,
         errors: []
       };
+      updateProgress('sources', 'Đang tìm nguồn từ DuckDuckGo, RSS và website...', 15, { diagnostics: { ...diagnostics } });
       const candidates = await collectCandidates(config, diagnostics);
-      for (const candidate of candidates) {
+      updateProgress('filtering', `Đã tìm thấy ${candidates.length} URL ứng viên. Đang lọc nguồn mới...`, 35, { diagnostics: { ...diagnostics }, totalCandidates: candidates.length, processedCandidates: 0 });
+      for (const [index, candidate] of candidates.entries()) {
+        updateProgress('reading', `Đang đọc nguồn ${index + 1}/${candidates.length}...`, 40 + Math.min(20, Math.round((index / Math.max(candidates.length, 1)) * 20)), { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index });
         if (!await claimCandidate(candidate)) {
           diagnostics.alreadyProcessed += 1;
           continue;
@@ -395,7 +403,9 @@ const createAutomation = ({ db, env = process.env }) => {
           await db.query('UPDATE ai_generation_log SET content_hash=$1 WHERE source_url=$2', [contentHash, candidate.url]);
           const categoryRows = await db.query('SELECT id, name FROM categories ORDER BY name');
           const categories = categoryRows.rows;
+          updateProgress('writing', 'Đã đọc nguồn. 9Router đang biên tập bài viết...', 70, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           const generated = await callAi(config, article, categories);
+          updateProgress('publishing', 'Đã nhận nội dung từ 9Router. Đang kiểm tra và đăng bài...', 90, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           const validCategory = categories.some(category => category.id === generated.category) ? generated.category : categories[0]?.id || 'space-tech';
           const sourceBlock = `<hr><p><strong>Nguồn tham khảo:</strong> <a href="${candidate.url}" target="_blank" rel="noopener noreferrer nofollow">${article.title || new URL(candidate.url).hostname}</a>. Bài viết được AI tổng hợp và biên tập lại.</p>`;
           const content = sanitizeHtml(`${generated.content}${sourceBlock}`, {
@@ -412,6 +422,7 @@ const createAutomation = ({ db, env = process.env }) => {
           );
           await db.query("UPDATE ai_generation_log SET status='published', post_id=$1, published_at=CURRENT_TIMESTAMP WHERE source_url=$2", [postId, candidate.url]);
           lastResult = { status: 'published', postId, sourceUrl: candidate.url, title: generated.title, completedAt: new Date().toISOString() };
+          updateProgress('completed', 'Đã đăng bài viết thành công.', 100, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           return lastResult;
         } catch (error) {
           diagnostics.failed += 1;
@@ -420,6 +431,7 @@ const createAutomation = ({ db, env = process.env }) => {
         }
       }
       lastResult = { status: 'skipped', reason: 'no-new-source', diagnostics, completedAt: new Date().toISOString() };
+      updateProgress('completed', 'Đã kiểm tra tất cả nguồn nhưng chưa tạo được bài mới.', 100, { diagnostics: { ...diagnostics }, totalCandidates: candidates.length, processedCandidates: candidates.length });
       return lastResult;
     } catch (error) {
       lastResult = {
@@ -427,6 +439,7 @@ const createAutomation = ({ db, env = process.env }) => {
         error: String(error.message || error).slice(0, 500),
         completedAt: new Date().toISOString()
       };
+      updateProgress('failed', String(error.message || error), 100);
       throw error;
     } finally {
       running = false;
@@ -464,7 +477,7 @@ const createAutomation = ({ db, env = process.env }) => {
     reschedule,
     status: async () => {
       const config = await loadConfig();
-      return { enabled: config.enabled, running, lastResult, sourceCount: config.rssFeeds.length + config.websites.length, discoveryEnabled: config.discoveryEnabled, runHourUtc: config.runHourUtc, model: config.model || null };
+      return { enabled: config.enabled, running, progress, lastResult, sourceCount: config.rssFeeds.length + config.websites.length, discoveryEnabled: config.discoveryEnabled, runHourUtc: config.runHourUtc, model: config.model || null };
     }
   };
 };
