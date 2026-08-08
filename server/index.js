@@ -14,6 +14,7 @@ const multer = require('multer'); // Import multer
 const db = require('./db');
 const { schemas, validateBody, validateParams } = require('./validation');
 const { detectImageType } = require('./media');
+const { addHeadingIds, parseStringArray } = require('./post-content');
 const { createAutomation } = require('./automation');
 const { ensureAutomationSettings, serializeAutomationSettings } = require('./automation-settings');
 
@@ -259,6 +260,12 @@ const initDb = async () => {
       ['quality_score', 'INTEGER'],
       ['quality_report', 'TEXT'],
       ['source_url', 'TEXT'],
+      ['source_urls', "TEXT NOT NULL DEFAULT '[]'"],
+      ['seo_title', 'VARCHAR(70)'],
+      ['meta_description', 'VARCHAR(170)'],
+      ['keywords', "TEXT NOT NULL DEFAULT '[]'"],
+      ['image_alt', 'VARCHAR(255)'],
+      ['image_caption', 'TEXT'],
       ['reviewed_at', 'TIMESTAMP'],
       ['reviewed_by', 'VARCHAR(50)']
     ];
@@ -653,7 +660,12 @@ app.get('/api/posts', async (req, res) => {
       category: p.category,
       tags: JSON.parse(p.tags || '[]'),
       imageUrl: fixUrl(p.image_url),
-      readTime: p.read_time
+      readTime: p.read_time,
+      seoTitle: p.seo_title || p.title,
+      metaDescription: p.meta_description || p.excerpt,
+      keywords: parseStringArray(p.keywords),
+      imageAlt: p.image_alt || p.title,
+      imageCaption: p.image_caption || ''
     }));
     res.json(posts);
   } catch (err) {
@@ -667,17 +679,39 @@ app.get('/api/posts/:id', validateParams(schemas.idParam), async (req, res) => {
     const result = await db.query("SELECT * FROM posts WHERE id = $1 AND status='published'", [req.params.id]);
     if (result.rows.length > 0) {
       const p = result.rows[0];
+      const normalized = addHeadingIds(p.content);
+      const relatedResult = await db.query("SELECT id, title, excerpt, image_url, category, tags FROM posts WHERE status='published' AND id!=$1 AND category=$2 ORDER BY created_at DESC LIMIT 10", [p.id, p.category]);
+      const currentTerms = new Set([...JSON.parse(p.tags || '[]'), ...parseStringArray(p.keywords)].map(value => value.toLowerCase()));
+      const relatedPosts = relatedResult.rows
+        .map(related => ({
+          id: related.id,
+          title: related.title,
+          excerpt: related.excerpt,
+          imageUrl: fixUrl(related.image_url),
+          category: related.category,
+          score: JSON.parse(related.tags || '[]').filter(tag => currentTerms.has(tag.toLowerCase())).length
+        }))
+        .sort((first, second) => second.score - first.score)
+        .slice(0, 3)
+        .map(({ score: _score, ...related }) => related);
       res.json({
         id: p.id,
         title: p.title,
         excerpt: p.excerpt,
-        content: p.content,
+        content: normalized.content,
         author: p.author,
         date: p.date,
         category: p.category,
         tags: JSON.parse(p.tags || '[]'),
         imageUrl: fixUrl(p.image_url),
-        readTime: p.read_time
+        readTime: p.read_time,
+        seoTitle: p.seo_title || p.title,
+        metaDescription: p.meta_description || p.excerpt,
+        keywords: parseStringArray(p.keywords),
+        imageAlt: p.image_alt || p.title,
+        imageCaption: p.image_caption || '',
+        toc: normalized.toc,
+        relatedPosts
       });
     } else {
       res.status(404).json({ error: 'Post not found' });
@@ -707,6 +741,12 @@ app.get('/api/admin/posts', authenticate, authorize('admin', 'editor'), async (r
       qualityScore: p.quality_score,
       qualityReport: p.quality_report ? JSON.parse(p.quality_report) : null,
       sourceUrl: p.source_url
+      ,sourceUrls: JSON.parse(p.source_urls || '[]'),
+      seoTitle: p.seo_title || p.title,
+      metaDescription: p.meta_description || p.excerpt,
+      keywords: parseStringArray(p.keywords),
+      imageAlt: p.image_alt || p.title,
+      imageCaption: p.image_caption || ''
     })));
   } catch (error) {
     console.error(error);
@@ -719,7 +759,8 @@ app.get('/api/admin/posts/:id', authenticate, authorize('admin', 'editor'), vali
     const result = await db.query('SELECT * FROM posts WHERE id=$1', [req.params.id]);
     if (!result.rows[0]) return res.status(404).json({ error: 'Post not found' });
     const p = result.rows[0];
-    return res.json({ id: p.id, title: p.title, excerpt: p.excerpt, content: p.content, author: p.author, date: p.date, category: p.category, tags: JSON.parse(p.tags || '[]'), imageUrl: fixUrl(p.image_url), readTime: p.read_time, status: p.status, qualityScore: p.quality_score, qualityReport: p.quality_report ? JSON.parse(p.quality_report) : null, sourceUrl: p.source_url });
+    const normalized = addHeadingIds(p.content);
+    return res.json({ id: p.id, title: p.title, excerpt: p.excerpt, content: normalized.content, author: p.author, date: p.date, category: p.category, tags: JSON.parse(p.tags || '[]'), imageUrl: fixUrl(p.image_url), readTime: p.read_time, status: p.status, qualityScore: p.quality_score, qualityReport: p.quality_report ? JSON.parse(p.quality_report) : null, sourceUrl: p.source_url, sourceUrls: JSON.parse(p.source_urls || '[]'), seoTitle: p.seo_title || p.title, metaDescription: p.meta_description || p.excerpt, keywords: parseStringArray(p.keywords), imageAlt: p.image_alt || p.title, imageCaption: p.image_caption || '', toc: normalized.toc });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Unable to load admin post' });
@@ -756,13 +797,13 @@ app.post('/api/posts', authenticate, authorize('admin', 'editor'), validateBody(
     const check = await db.query('SELECT id FROM posts WHERE id = $1', [p.id]);
     if (check.rows.length > 0) {
       await db.query(
-        `UPDATE posts SET title=$1, excerpt=$2, content=$3, author=$4, date=$5, category=$6, tags=$7, image_url=$8, read_time=$9, status=COALESCE($10, status) WHERE id=$11`,
-        [p.title, p.excerpt, p.content, p.author, p.date, p.category, JSON.stringify(p.tags), p.imageUrl, p.readTime, p.status, p.id]
+        `UPDATE posts SET title=$1, excerpt=$2, content=$3, author=$4, date=$5, category=$6, tags=$7, image_url=$8, read_time=$9, status=COALESCE($10, status), seo_title=$11, meta_description=$12, keywords=$13, image_alt=$14, image_caption=$15 WHERE id=$16`,
+        [p.title, p.excerpt, addHeadingIds(p.content).content, p.author, p.date, p.category, JSON.stringify(p.tags), p.imageUrl, p.readTime, p.status, p.seoTitle, p.metaDescription, JSON.stringify(p.keywords), p.imageAlt, p.imageCaption, p.id]
       );
     } else {
       await db.query(
-        `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-        [p.id, p.title, p.excerpt, p.content, p.author, p.date, p.category, JSON.stringify(p.tags), p.imageUrl, p.readTime, p.status || 'published']
+        `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time, status, seo_title, meta_description, keywords, image_alt, image_caption) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+        [p.id, p.title, p.excerpt, addHeadingIds(p.content).content, p.author, p.date, p.category, JSON.stringify(p.tags), p.imageUrl, p.readTime, p.status || 'published', p.seoTitle, p.metaDescription, JSON.stringify(p.keywords), p.imageAlt, p.imageCaption]
       );
     }
     res.json({ success: true });

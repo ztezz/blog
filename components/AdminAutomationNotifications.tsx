@@ -28,7 +28,7 @@ const AdminAutomationNotifications: React.FC = () => {
         if (lastResult.status === 'published') {
           setNotice({ type: 'success', title: 'AI đã đăng bài mới', message: lastResult.title || 'Bài viết AI đã được đăng thành công.' });
         } else if (lastResult.status === 'draft') {
-          setNotice({ type: 'success', title: 'AI đã tạo bản nháp', message: `${lastResult.title || 'Bài viết mới'} · Điểm chất lượng ${lastResult.qualityScore ?? 0}/100` });
+          setNotice({ type: 'success', title: 'AI đã tạo bản nháp', message: `${lastResult.title || 'Bài viết mới'} · ${lastResult.sourceCount ?? 1} nguồn · Điểm ${lastResult.qualityScore ?? 0}/100` });
         } else if (lastResult.status === 'failed') {
           setNotice({ type: 'error', title: 'Lượt chạy AI thất bại', message: lastResult.error || 'Không thể hoàn tất lượt tạo bài tự động.' });
         } else {

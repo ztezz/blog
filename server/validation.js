@@ -97,7 +97,12 @@ const schemas = {
     tags: z.array(z.string().trim().min(1).max(50)).max(30),
     imageUrl: optionalMediaUrl,
     readTime: z.string().trim().max(50),
-    status: z.enum(['draft', 'published', 'rejected']).optional()
+    status: z.enum(['draft', 'published', 'rejected']).optional(),
+    seoTitle: z.string().trim().max(70).optional().default(''),
+    metaDescription: z.string().trim().max(170).optional().default(''),
+    keywords: z.array(z.string().trim().min(1).max(80)).max(10).optional().default([]),
+    imageAlt: z.string().trim().max(255).optional().default(''),
+    imageCaption: z.string().trim().max(1000).optional().default('')
   }),
   settings: z.object({
     siteNamePrefix: z.string().trim().max(100),

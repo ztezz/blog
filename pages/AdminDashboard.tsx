@@ -235,10 +235,10 @@ const AdminDashboard: React.FC = () => {
                 const stages = [
                   { key: 'sources', label: 'Tìm nguồn', icon: Search },
                   { key: 'reading', label: 'Đọc và lọc', icon: FileText },
-                  { key: 'writing', label: '9Router viết', icon: Cpu },
+                  { key: 'writing', label: 'Viết & kiểm chứng', icon: Cpu },
                   { key: 'publishing', label: 'Đăng bài', icon: Send }
                 ];
-                const stageOrder = ['config', 'sources', 'filtering', 'reading', 'writing', 'publishing', 'completed'];
+                const stageOrder = ['config', 'sources', 'filtering', 'reading', 'writing', 'verifying', 'publishing', 'completed'];
                 const currentIndex = stageOrder.indexOf(progress?.stage || 'config');
                 return (
                   <div className="space-y-6">
@@ -256,7 +256,7 @@ const AdminDashboard: React.FC = () => {
                       {stages.map(({ key, label, icon: Icon }) => {
                         const index = stageOrder.indexOf(key);
                         const done = progress?.stage === 'completed' || currentIndex > index;
-                        const active = progress?.stage !== 'failed' && (progress?.stage === key || (key === 'reading' && progress?.stage === 'filtering'));
+                        const active = progress?.stage !== 'failed' && (progress?.stage === key || (key === 'reading' && progress?.stage === 'filtering') || (key === 'writing' && progress?.stage === 'verifying'));
                         return <div key={key} className={`flex items-center gap-3 rounded-xl border p-3 ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : active ? 'border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-300' : 'border-slate-200 text-slate-400 dark:border-white/10 dark:text-gray-500'}`}>{done ? <CheckCircle2 size={18} /> : active ? <LoaderCircle className="animate-spin" size={18} /> : <Icon size={18} />}<span className="text-sm font-bold">{label}</span></div>;
                       })}
                     </div>
@@ -268,7 +268,7 @@ const AdminDashboard: React.FC = () => {
                     </div>
 
                     {automationStatus?.lastResult?.status === 'published' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"><CheckCircle2 className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đăng bài thành công</p><p className="mt-1 text-sm">{automationStatus.lastResult.title}</p></div></div>}
-                    {automationStatus?.lastResult?.status === 'draft' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-sky-300 bg-sky-50 p-4 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"><ClipboardCheck className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đã lưu bản nháp chờ duyệt</p><p className="mt-1 text-sm">{automationStatus.lastResult.title} · Điểm chất lượng {automationStatus.lastResult.qualityScore ?? 0}/100</p></div></div>}
+                    {automationStatus?.lastResult?.status === 'draft' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-sky-300 bg-sky-50 p-4 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"><ClipboardCheck className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đã lưu bản nháp chờ duyệt</p><p className="mt-1 text-sm">{automationStatus.lastResult.title} · {automationStatus.lastResult.sourceCount ?? 1} nguồn · Điểm {automationStatus.lastResult.qualityScore ?? 0}/100</p></div></div>}
                     {automationStatus?.lastResult?.status === 'skipped' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><AlertCircle className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Chưa tạo được bài mới</p><p className="mt-1 text-sm">Đã kiểm tra các nguồn nhưng không có nội dung mới phù hợp.</p></div></div>}
                     {!isGenerating && <div className="flex justify-end"><button type="button" onClick={handleGeneratePost} className="inline-flex items-center rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-purple-700"><Sparkles className="mr-2" size={17} /> Chạy lượt mới</button></div>}
                   </div>
@@ -294,9 +294,12 @@ const AdminDashboard: React.FC = () => {
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${(draft.qualityScore || 0) >= 80 ? 'bg-emerald-100 text-emerald-700' : (draft.qualityScore || 0) >= 65 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{draft.qualityScore ?? 0}/100</span>
                       <span className="text-xs text-slate-500">{draft.category}</span>
+                      <span className="text-xs text-slate-500">{draft.sourceUrls?.length || 1} nguồn</span>
                     </div>
                     <h3 className="truncate font-bold text-slate-900 dark:text-white">{draft.title}</h3>
                     <p className="mt-1 line-clamp-2 text-sm text-slate-500 dark:text-gray-400">{draft.excerpt}</p>
+                    {draft.qualityReport?.verification && <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">Kiểm chứng: <span className="font-bold text-emerald-600">{draft.qualityReport.verification.supported} đạt</span> · <span className="font-bold text-amber-600">{draft.qualityReport.verification.partial} một phần</span> · <span className="font-bold text-red-600">{draft.qualityReport.verification.unsupported} không đạt</span></p>}
+                    {!!draft.qualityReport?.hardFailures?.length && <p className="mt-2 text-xs font-bold text-red-600">Cần xem lại: {draft.qualityReport.hardFailures.join('; ')}</p>}
                     {draft.sourceUrl && <a href={draft.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center text-xs text-sky-600 hover:underline">Xem nguồn <ExternalLink className="ml-1" size={12} /></a>}
                   </div>
                   <div className="flex flex-wrap gap-2 lg:justify-end">

@@ -5,6 +5,7 @@ import { ArrowLeft, Calendar, Share2, Tag } from 'lucide-react';
 import { getPostById } from '../utils/storage';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { BlogPost } from '../types';
+import PostSeo from '../components/PostSeo';
 
 const PostDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -41,8 +42,15 @@ const PostDetail: React.FC = () => {
     );
   }
 
+  const handleShare = async () => {
+    const shareData = { title: post.title, text: post.excerpt, url: window.location.href };
+    if (navigator.share) await navigator.share(shareData);
+    else await navigator.clipboard.writeText(window.location.href);
+  };
+
   return (
     <article className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+      <PostSeo post={post} />
       <div className="max-w-4xl mx-auto">
         {/* Back Button */}
         <Link to="/blog" className="inline-flex items-center text-slate-500 hover:text-sky-600 dark:text-gray-400 dark:hover:text-cyan-400 mb-8 transition-colors">
@@ -75,16 +83,26 @@ const PostDetail: React.FC = () => {
                 {post.date}
               </div>
             </div>
-            <button className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-sky-600 dark:text-gray-400 dark:hover:text-white">
+            <button onClick={handleShare} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-sky-600 dark:text-gray-400 dark:hover:text-white" aria-label="Chia sẻ bài viết">
               <Share2 size={20} />
             </button>
           </div>
         </div>
 
         {/* Featured Image */}
-        <div className="mb-12 rounded-xl overflow-hidden shadow-xl shadow-slate-200 dark:shadow-space-neon/10 border border-slate-200 dark:border-white/10">
-          <img src={post.imageUrl} alt={post.title} className="w-full h-auto object-cover max-h-[500px]" />
-        </div>
+        <figure className="mb-12 overflow-hidden rounded-xl border border-slate-200 shadow-xl shadow-slate-200 dark:border-white/10 dark:shadow-space-neon/10">
+          <img src={post.imageUrl} alt={post.imageAlt || post.title} className="max-h-[500px] w-full object-cover" />
+          {post.imageCaption && <figcaption className="bg-slate-50 px-4 py-3 text-center text-sm text-slate-500 dark:bg-slate-900 dark:text-gray-400">{post.imageCaption}</figcaption>}
+        </figure>
+
+        {!!post.toc?.length && post.toc.length >= 2 && (
+          <nav className="mb-10 rounded-xl border border-sky-200 bg-sky-50 p-5 dark:border-sky-500/20 dark:bg-sky-500/10" aria-label="Mục lục bài viết">
+            <h2 className="mb-3 font-bold text-sky-900 dark:text-sky-200">Nội dung bài viết</h2>
+            <ol className="space-y-2 text-sm">
+              {post.toc.map(item => <li key={item.id} className={item.level === 3 ? 'pl-5' : ''}><a href={`#${item.id}`} className="text-slate-700 hover:text-sky-600 dark:text-gray-300 dark:hover:text-cyan-300">{item.text}</a></li>)}
+            </ol>
+          </nav>
+        )}
 
         {/* Content */}
         <div 
@@ -111,6 +129,15 @@ const PostDetail: React.FC = () => {
             </span>
           ))}
         </div>
+
+        {!!post.relatedPosts?.length && (
+          <section className="mt-12 border-t border-slate-200 pt-8 dark:border-white/10" aria-labelledby="related-title">
+            <h2 id="related-title" className="mb-5 text-2xl font-bold text-slate-900 dark:text-white">Bài viết liên quan</h2>
+            <div className="grid gap-5 md:grid-cols-3">
+              {post.relatedPosts.map(related => <Link key={related.id} to={`/blog/${related.id}`} className="group overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:shadow-lg dark:border-white/10 dark:bg-slate-800"><img src={related.imageUrl} alt="" className="h-36 w-full object-cover" /><div className="p-4"><p className="mb-2 text-xs font-bold uppercase text-sky-600">{related.category}</p><h3 className="line-clamp-2 font-bold text-slate-900 group-hover:text-sky-600 dark:text-white">{related.title}</h3></div></Link>)}
+            </div>
+          </section>
+        )}
       </div>
     </article>
   );

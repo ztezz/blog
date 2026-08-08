@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import automation from './automation.js';
 
-const { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime } = automation;
+const { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime, selectRelatedCandidates, sourceSimilarity } = automation;
 
 const temporaryDirectories = [];
 
@@ -73,6 +73,18 @@ describe('content automation helpers', () => {
     expect(readingTime('<p>short article</p>')).toBe('1 phút');
   });
 
+  it('selects related evidence from independent domains', () => {
+    const anchor = { url: 'https://nasa.gov/mars-map', title: 'New satellite map of Mars terrain', summary: 'Orbiter data maps Mars terrain' };
+    const candidates = [
+      anchor,
+      { url: 'https://nasa.gov/duplicate', title: 'Satellite map of Mars terrain', summary: 'Mars terrain data' },
+      { url: 'https://esa.int/mars-map', title: 'Satellite data improves Mars terrain map', summary: 'Mars orbiter mapping' },
+      { url: 'https://example.com/weather', title: 'Weather forecast for Earth', summary: 'Rain and wind' }
+    ];
+    expect(sourceSimilarity(anchor, candidates[2])).toBeGreaterThan(0.2);
+    expect(selectRelatedCandidates(anchor, candidates)).toEqual([candidates[2]]);
+  });
+
   it('creates one sanitized AI draft with a quality score and records its source', async () => {
     const uploadDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cosmogis-images-'));
     temporaryDirectories.push(uploadDir);
@@ -113,13 +125,26 @@ describe('content automation helpers', () => {
       if (String(url).endsWith('/chat/completions')) {
         const request = JSON.parse(options.body || '{}');
         expect(request.model).toBe('database-model');
+        if (request.temperature === 0) {
+          return new Response(JSON.stringify({
+            choices: [{ message: { content: JSON.stringify({
+              assessments: [{ claimIndex: 0, status: 'supported', sourceIds: ['S1'], note: 'Dữ kiện xuất hiện trong S1' }]
+            }) } }]
+          }), { status: 200, headers: { 'content-type': 'application/json' } });
+        }
         return new Response(JSON.stringify({
           choices: [{ message: { content: JSON.stringify({
             title: 'Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới',
             excerpt: 'Phân tích dữ liệu bản đồ mới phục vụ nghiên cứu địa hình Sao Hỏa.',
             content: `<h2>Tổng quan</h2><p>${'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình. '.repeat(12)}</p><script>alert(1)</script>`,
             category: 'space-tech',
-            tags: ['Sao Hỏa', 'GIS']
+            tags: ['Sao Hỏa', 'GIS'],
+            seoTitle: 'Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới',
+            metaDescription: 'Khám phá cách dữ liệu vệ tinh mới hỗ trợ lập bản đồ và nghiên cứu địa hình Sao Hỏa với thông tin từ nguồn tham khảo.',
+            keywords: ['bản đồ Sao Hỏa', 'dữ liệu vệ tinh'],
+            imageAlt: 'Bản đồ địa hình Sao Hỏa từ dữ liệu vệ tinh',
+            imageCaption: 'Dữ liệu vệ tinh phục vụ nghiên cứu địa hình Sao Hỏa.',
+            claims: [{ text: 'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình Sao Hỏa.', sourceIds: ['S1'] }]
           }) } }]
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
@@ -155,9 +180,21 @@ describe('content automation helpers', () => {
     expect(postInsert.params[8]).toMatch(/^https:\/\/api\.cosmogis\.test\/api\/uploads\/ai-.+\.jpg$/);
     expect(postInsert.params[10]).toBe('draft');
     expect(postInsert.params[11]).toBe(result.qualityScore);
+    const qualityReport = JSON.parse(postInsert.params[12]);
+    expect(qualityReport.hardFailures).toEqual([]);
+    expect(qualityReport.verification).toMatchObject({ supported: 1, partial: 0, unsupported: 0 });
+    expect(postInsert.params[15]).toBe('Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới');
+    expect(postInsert.params[17]).toBe('["bản đồ Sao Hỏa","dữ liệu vệ tinh"]');
     expect(await fs.readdir(uploadDir)).toHaveLength(2);
     expect(fetch).toHaveBeenCalledWith('http://9router.test/v1/chat/completions', expect.anything());
     expect(queries.some(query => query.sql.includes("SET status=$1") && query.params[0] === 'draft')).toBe(true);
+  });
+
+  it('requires claims to cite an existing source', () => {
+    const sourceIds = new Set(['S1', 'S2']);
+    const claims = [{ text: 'A sufficiently detailed factual statement', sourceIds: ['S1', 'S3'] }];
+    const invalid = claims.flatMap((claim, claimIndex) => claim.sourceIds.filter(sourceId => !sourceIds.has(sourceId)).map(sourceId => ({ claimIndex, sourceId })));
+    expect(invalid).toEqual([{ claimIndex: 0, sourceId: 'S3' }]);
   });
 
   it('returns diagnostics when topic discovery finds no source', async () => {

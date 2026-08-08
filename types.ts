@@ -17,8 +17,26 @@ export interface BlogPost {
   readTime: string;
   status?: 'draft' | 'published' | 'rejected';
   qualityScore?: number | null;
-  qualityReport?: { checks?: string[]; warnings?: string[] } | null;
+  qualityReport?: {
+    checks?: string[];
+    warnings?: string[];
+    hardFailures?: string[];
+    verification?: {
+      supported: number;
+      partial: number;
+      unsupported: number;
+      assessments?: Array<{ claimIndex: number; text: string; status: 'supported' | 'partial' | 'unsupported'; sourceIds: string[]; note: string }>;
+    };
+  } | null;
   sourceUrl?: string;
+  sourceUrls?: string[];
+  seoTitle?: string;
+  metaDescription?: string;
+  keywords?: string[];
+  imageAlt?: string;
+  imageCaption?: string;
+  toc?: Array<{ id: string; text: string; level: 2 | 3 }>;
+  relatedPosts?: Array<Pick<BlogPost, 'id' | 'title' | 'excerpt' | 'imageUrl' | 'category'>>;
 }
 
 export interface NavItem {
@@ -83,6 +101,7 @@ export interface AutomationRunResult {
   postId?: string;
   title?: string;
   qualityScore?: number;
+  sourceCount?: number;
   reason?: string;
   error?: string;
   diagnostics?: AutomationDiagnostics;
@@ -101,7 +120,7 @@ export interface AutomationDiagnostics {
 }
 
 export interface AutomationProgress {
-  stage: 'config' | 'sources' | 'filtering' | 'reading' | 'writing' | 'publishing' | 'completed' | 'failed';
+  stage: 'config' | 'sources' | 'filtering' | 'reading' | 'writing' | 'verifying' | 'publishing' | 'completed' | 'failed';
   message: string;
   percent: number;
   updatedAt: string;

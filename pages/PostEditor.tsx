@@ -35,10 +35,16 @@ const PostEditor: React.FC = () => {
     category: '',
     tags: [],
     imageUrl: 'https://picsum.photos/800/400',
-    readTime: '0 phút'
+    readTime: '0 phút',
+    seoTitle: '',
+    metaDescription: '',
+    keywords: [],
+    imageAlt: '',
+    imageCaption: ''
   });
   
   const [tagInput, setTagInput] = useState('');
+  const [keywordInput, setKeywordInput] = useState('');
   const [editorMode, setEditorMode] = useState<'visual' | 'code'>('visual');
 
   // --- Initialization & Effects ---
@@ -64,6 +70,7 @@ const PostEditor: React.FC = () => {
         if (existing) {
           setFormData(existing);
           setTagInput(existing.tags.join(', '));
+          setKeywordInput(existing.keywords?.join(', ') || '');
         }
         setLoading(false);
       } else {
@@ -103,6 +110,11 @@ const PostEditor: React.FC = () => {
     setTagInput(e.target.value);
     const tags = e.target.value.split(',').map(t => t.trim()).filter(t => t !== '');
     setFormData(prev => ({ ...prev, tags }));
+  };
+
+  const handleKeywordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setKeywordInput(e.target.value);
+    setFormData(prev => ({ ...prev, keywords: e.target.value.split(',').map(value => value.trim()).filter(Boolean) }));
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -414,6 +426,10 @@ const PostEditor: React.FC = () => {
                 {formData.imageUrl && <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />}
               </div>
             </div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div><label className="mb-1 block text-xs text-slate-500">Alt text ảnh</label><input type="text" name="imageAlt" value={formData.imageAlt || ''} onChange={handleChange} maxLength={255} className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></div>
+              <div><label className="mb-1 block text-xs text-slate-500">Chú thích ảnh</label><input type="text" name="imageCaption" value={formData.imageCaption || ''} onChange={handleChange} maxLength={1000} className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></div>
+            </div>
           </div>
 
           <div>
@@ -437,6 +453,15 @@ const PostEditor: React.FC = () => {
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none resize-none"
               placeholder="Mô tả ngắn gọn về bài viết hiển thị ở trang chủ..."
             ></textarea>
+          </div>
+
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-5 dark:border-sky-500/20 dark:bg-sky-500/10">
+            <h3 className="mb-4 font-bold text-sky-900 dark:text-sky-200">SEO bài viết</h3>
+            <div className="space-y-4">
+              <div><label className="mb-1 flex justify-between text-sm text-slate-600 dark:text-gray-300"><span>SEO title</span><span>{(formData.seoTitle || '').length}/60</span></label><input type="text" name="seoTitle" value={formData.seoTitle || ''} onChange={handleChange} maxLength={70} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" placeholder={formData.title || 'Tiêu đề hiển thị trên công cụ tìm kiếm'} /></div>
+              <div><label className="mb-1 flex justify-between text-sm text-slate-600 dark:text-gray-300"><span>Meta description</span><span>{(formData.metaDescription || '').length}/160</span></label><textarea name="metaDescription" value={formData.metaDescription || ''} onChange={handleChange} maxLength={170} rows={3} className="w-full resize-none rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" placeholder={formData.excerpt || 'Mô tả cho kết quả tìm kiếm'} /></div>
+              <div><label className="mb-1 block text-sm text-slate-600 dark:text-gray-300">Từ khóa SEO, cách nhau bằng dấu phẩy</label><input type="text" value={keywordInput} onChange={handleKeywordChange} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></div>
+            </div>
           </div>
 
           {/* EDITOR SECTION */}
