@@ -332,14 +332,26 @@ const createAutomation = ({ db, env = process.env }) => {
       signal: AbortSignal.timeout(120000),
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify({ ...body, stream: false })
     });
     let response = await send({ ...request, response_format: { type: 'json_object' } });
     if (response.status === 400) response = await send(request);
     if (!response.ok) throw new Error(`AI gateway returned HTTP ${response.status}`);
-    const payload = await response.json();
+    const text = await response.text();
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      const jsonLine = text.split('\n').find(line => line.startsWith('data: '));
+      if (jsonLine) {
+        payload = JSON.parse(jsonLine.replace(/^data:\s*/, '').trim());
+      } else {
+        throw new Error(`Invalid JSON response from AI gateway: ${text.slice(0, 100)}`);
+      }
+    }
     const content = payload?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new Error('AI gateway returned an invalid response');
     return generatedPostSchema.parse(JSON.parse(cleanJsonText(content)));
