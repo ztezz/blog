@@ -111,7 +111,9 @@ export interface AutomationConnectionResult {
 }
 
 export interface AutomationRunResult {
-  status: 'draft' | 'published' | 'skipped' | 'failed' | 'cancelled';
+  status: 'started' | 'draft' | 'published' | 'skipped' | 'failed' | 'cancelled';
+  runId?: string | null;
+  startedAt?: string;
   completedAt?: string;
   postId?: string;
   title?: string;
@@ -145,6 +147,7 @@ export interface AutomationProgress {
   totalCandidates?: number;
   processedCandidates?: number;
   diagnostics?: AutomationDiagnostics;
+  stale?: boolean;
 }
 
 export interface AutomationStatus {
@@ -152,6 +155,7 @@ export interface AutomationStatus {
   running: boolean;
   progress: AutomationProgress | null;
   lastResult: AutomationRunResult | null;
+  runId?: string | null;
 }
 
 export interface AutomationRunHistory {

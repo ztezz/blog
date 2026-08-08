@@ -47,7 +47,15 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
   if (currentUser?.token) {
     headers.set('Authorization', `Bearer ${currentUser.token}`);
   }
-  const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`Không thể kết nối API tại ${API_URL}. Hãy kiểm tra backend, DNS và cấu hình CORS.`);
+    }
+    throw error;
+  }
   
   const contentType = res.headers.get("content-type");
   if (!contentType || contentType.indexOf("application/json") === -1) {
@@ -238,8 +246,8 @@ export const runAutomation = async (): Promise<AutomationRunResult> => {
   return fetchApi<AutomationRunResult>('/automation/run', { method: 'POST' });
 };
 
-export const cancelAutomation = async (): Promise<{ cancelled: boolean; reason?: string }> => {
-  return fetchApi<{ cancelled: boolean; reason?: string }>('/automation/cancel', { method: 'POST' });
+export const cancelAutomation = async (): Promise<{ cancelled: boolean; reason?: string; stale?: boolean; runId?: string }> => {
+  return fetchApi<{ cancelled: boolean; reason?: string; stale?: boolean; runId?: string }>('/automation/cancel', { method: 'POST' });
 };
 
 export const getAutomationRuns = async (): Promise<AutomationRunHistory[]> => fetchApi<AutomationRunHistory[]>('/automation/runs');

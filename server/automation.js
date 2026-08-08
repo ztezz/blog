@@ -910,23 +910,52 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
 
   return {
     run,
+    start: async (triggerType = 'manual') => {
+      if (running) return { status: 'skipped', reason: 'already-running' };
+      const persistedRun = await db.query("SELECT id FROM ai_automation_runs WHERE status='running' ORDER BY started_at DESC LIMIT 1");
+      if (persistedRun.rows.length > 0) return { status: 'skipped', reason: 'stale-run-requires-cancel', runId: persistedRun.rows[0].id };
+      const runPromise = run(triggerType);
+      const runId = activeRunId;
+      void runPromise.catch(error => console.error('[Automation] Background run failed:', error));
+      return { status: 'started', runId, startedAt: new Date().toISOString() };
+    },
     cancel: async () => {
-      if (!running || !activeController) return { cancelled: false, reason: 'not-running' };
-      activeController.abort(cancellationError());
-      updateProgress('cancelling', 'Đang dừng các tác vụ AI...', progress?.percent || 0);
-      return { cancelled: true };
+      if (running && activeController) {
+        activeController.abort(cancellationError());
+        updateProgress('cancelling', 'Đang dừng các tác vụ AI...', progress?.percent || 0);
+        return { cancelled: true };
+      }
+      const staleRuns = await db.query("SELECT id FROM ai_automation_runs WHERE status='running' ORDER BY started_at DESC");
+      if (staleRuns.rows.length === 0) return { cancelled: false, reason: 'not-running' };
+      await db.query("UPDATE ai_automation_runs SET status='cancelled', stage='cancelled', error=$1, completed_at=CURRENT_TIMESTAMP WHERE status='running'", ['Interrupted run cleared by admin']);
+      await db.query("UPDATE ai_generation_log SET status='cancelled', error=$1 WHERE status='processing'", ['Interrupted run cleared by admin']);
+      lastResult = { status: 'cancelled', reason: 'stale-run-cleared', completedAt: new Date().toISOString() };
+      updateProgress('cancelled', 'Đã hủy và dọn tiến trình cũ bị gián đoạn.', 100);
+      return { cancelled: true, stale: true, runId: staleRuns.rows[0].id };
     },
     schedule,
     reschedule,
     status: async () => {
       const config = await loadConfig();
+      let persistedRunning = null;
+      if (!running) {
+        const activeResult = await db.query("SELECT id, stage, started_at FROM ai_automation_runs WHERE status='running' ORDER BY started_at DESC LIMIT 1");
+        persistedRunning = activeResult.rows[0] || null;
+      }
       let persistedResult = lastResult;
       if (!persistedResult) {
         const result = await db.query("SELECT status, post_id, title, model, attempts, quality_score, source_count, error, completed_at FROM ai_automation_runs WHERE status!='running' ORDER BY started_at DESC LIMIT 1");
         const row = result.rows[0];
         if (row) persistedResult = { status: row.status, postId: row.post_id, title: row.title, model: row.model, attempts: row.attempts, qualityScore: row.quality_score, sourceCount: row.source_count, error: row.error, completedAt: row.completed_at };
       }
-      return { enabled: config.enabled, running, progress, lastResult: persistedResult, sourceCount: config.rssFeeds.length + config.websites.length, discoveryEnabled: config.discoveryEnabled, runHourUtc: config.runHourUtc, model: config.model || null, runId: activeRunId };
+      const persistedProgress = persistedRunning ? {
+        stage: 'cancelling',
+        message: 'Phát hiện tiến trình cũ bị gián đoạn. Hãy hủy tiến trình này trước khi chạy lượt mới.',
+        percent: 0,
+        updatedAt: persistedRunning.started_at,
+        stale: true
+      } : null;
+      return { enabled: config.enabled, running: running || Boolean(persistedRunning), progress: progress || persistedProgress, lastResult: persistedResult, sourceCount: config.rssFeeds.length + config.websites.length, discoveryEnabled: config.discoveryEnabled, runHourUtc: config.runHourUtc, model: config.model || null, runId: activeRunId || persistedRunning?.id || null };
     }
   };
 };

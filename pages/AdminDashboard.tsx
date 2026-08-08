@@ -134,12 +134,17 @@ const AdminDashboard: React.FC = () => {
   const handleGeneratePost = async () => {
     setIsGenerating(true);
     setAutomationError('');
+    let backgroundRunStarted = false;
     try {
       const result = await runAutomation();
-      setAutomationStatus(await getAutomationStatus());
+      backgroundRunStarted = result.status === 'started';
+      const status = await getAutomationStatus();
+      setAutomationStatus(status);
+      setIsGenerating(status.running);
+      backgroundRunStarted = status.running;
       if (result.status === 'published') await loadPosts();
       if (result.status === 'draft') await loadDrafts();
-      await loadAutomationInsights();
+      if (!backgroundRunStarted) await loadAutomationInsights();
     } catch (error) {
       setAutomationError(error instanceof Error ? error.message : 'Không thể tạo bài viết AI');
       try {
@@ -148,7 +153,7 @@ const AdminDashboard: React.FC = () => {
         // Keep the original run error visible.
       }
     } finally {
-      setIsGenerating(false);
+      if (!backgroundRunStarted) setIsGenerating(false);
     }
   };
 
@@ -158,6 +163,10 @@ const AdminDashboard: React.FC = () => {
     try {
       const result = await cancelAutomation();
       if (!result.cancelled) setAutomationError('Không có lượt tạo bài nào đang chạy.');
+      else if (result.stale) {
+        setAutomationStatus(await getAutomationStatus());
+        await loadAutomationInsights();
+      }
     } catch (error) {
       setAutomationError(error instanceof Error ? error.message : 'Không thể dừng lượt tạo bài');
     } finally {
@@ -283,7 +292,7 @@ const AdminDashboard: React.FC = () => {
                     {automationStatus?.lastResult?.status === 'draft' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-sky-300 bg-sky-50 p-4 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"><ClipboardCheck className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đã lưu bản nháp chờ duyệt</p><p className="mt-1 text-sm">{automationStatus.lastResult.title} · {automationStatus.lastResult.sourceCount ?? 1} nguồn · Điểm {automationStatus.lastResult.qualityScore ?? 0}/100</p><p className="mt-1 text-xs opacity-75">Model: {automationStatus.lastResult.model || 'không xác định'} · {automationStatus.lastResult.attempts || 1} lượt gọi</p></div></div>}
                     {automationStatus?.lastResult?.status === 'skipped' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><AlertCircle className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Chưa tạo được bài mới</p><p className="mt-1 text-sm">Đã kiểm tra các nguồn nhưng không có nội dung mới phù hợp.</p></div></div>}
                     {automationStatus?.lastResult?.status === 'cancelled' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><Octagon className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đã dừng lượt tạo bài</p><p className="mt-1 text-sm">Không có bài viết dở dang nào được lưu hoặc công khai.</p></div></div>}
-                    {isGenerating && <div className="flex justify-end"><button type="button" onClick={handleCancelAutomation} disabled={isCancelling} className="inline-flex items-center rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20">{isCancelling ? <LoaderCircle className="mr-2 animate-spin" size={17} /> : <Octagon className="mr-2" size={17} />}{isCancelling ? 'Đang dừng...' : 'Dừng tạo bài'}</button></div>}
+                    {isGenerating && <div className="flex justify-end"><button type="button" onClick={handleCancelAutomation} disabled={isCancelling} className="inline-flex items-center rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20">{isCancelling ? <LoaderCircle className="mr-2 animate-spin" size={17} /> : <Octagon className="mr-2" size={17} />}{isCancelling ? 'Đang dừng...' : automationStatus?.progress?.stale ? 'Hủy tiến trình cũ' : 'Dừng tạo bài'}</button></div>}
                     {!isGenerating && <div className="flex justify-end"><button type="button" onClick={handleGeneratePost} className="inline-flex items-center rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-purple-700"><Sparkles className="mr-2" size={17} /> Chạy lượt mới</button></div>}
                   </div>
                 );

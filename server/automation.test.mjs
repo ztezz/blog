@@ -313,14 +313,47 @@ describe('content automation helpers', () => {
     })));
 
     const service = createAutomation({ db });
-    const runPromise = service.run();
+    const started = await service.start();
+    expect(started).toMatchObject({ status: 'started', runId: expect.stringMatching(/^run-/) });
     await vi.waitFor(async () => expect((await service.status()).running).toBe(true));
+    expect(await service.start()).toEqual({ status: 'skipped', reason: 'already-running' });
     expect(await service.cancel()).toEqual({ cancelled: true });
-    expect(await runPromise).toMatchObject({ status: 'cancelled' });
+    await vi.waitFor(async () => expect((await service.status()).running).toBe(false));
+    expect((await service.status()).lastResult).toMatchObject({ status: 'cancelled' });
     expect(await service.cancel()).toEqual({ cancelled: false, reason: 'not-running' });
     expect((await service.status()).progress).toMatchObject({ stage: 'cancelled', percent: 100 });
     expect(db.query).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO posts'), expect.anything());
     expect(db.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE ai_automation_runs SET status=$1'), ['cancelled', 'cancelled', expect.stringMatching(/^run-/)]);
+  });
+
+  it('recovers and clears a persisted run interrupted by a backend restart', async () => {
+    let staleRunActive = true;
+    const db = {
+      query: vi.fn(async (sql, params = []) => {
+        if (sql.includes('SELECT * FROM ai_automation_settings')) return { rows: [{
+          enabled: 0,
+          base_url: 'http://9router.test/v1',
+          api_key: '',
+          model: 'writer',
+          rss_feeds: '[]',
+          website_urls: '[]',
+          discovery_enabled: 0,
+          run_hour_utc: 1,
+          author: 'AI',
+          default_image_url: '/image.jpg'
+        }] };
+        if (sql.includes("SELECT id, stage, started_at") && staleRunActive) return { rows: [{ id: 'run-stale', stage: 'writing', started_at: '2026-08-08T08:00:00.000Z' }] };
+        if (sql.includes("SELECT id FROM ai_automation_runs") && staleRunActive) return { rows: [{ id: 'run-stale' }] };
+        if (sql.includes("UPDATE ai_automation_runs SET status='cancelled'")) staleRunActive = false;
+        return { rows: [], rowCount: 1, params };
+      })
+    };
+
+    const service = createAutomation({ db });
+    expect(await service.status()).toMatchObject({ running: true, runId: 'run-stale', progress: { stale: true } });
+    expect(await service.cancel()).toMatchObject({ cancelled: true, stale: true, runId: 'run-stale' });
+    expect(await service.status()).toMatchObject({ running: false, lastResult: { status: 'cancelled', reason: 'stale-run-cleared' } });
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining("UPDATE ai_generation_log SET status='cancelled'"), ['Interrupted run cleared by admin']);
   });
 
 });

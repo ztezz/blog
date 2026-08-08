@@ -613,8 +613,8 @@ app.post('/api/automation/cancel', authenticate, authorize('admin'), async (req,
 
 app.post('/api/automation/run', authenticate, authorize('admin'), automationLimiter, async (req, res, next) => {
   try {
-    const result = await automation.run();
-    return res.json(result);
+    const result = await automation.start();
+    return res.status(result.status === 'started' ? 202 : 200).json(result);
   } catch (error) {
     return next(error);
   }
