@@ -115,4 +115,10 @@ describe('API request schemas', () => {
     })).toEqual({ baseUrl: 'http://localhost:20128/v1', apiKey: '', model: 'writer' });
     expect(schemas.automationConnectionTest.safeParse({ baseUrl: 'file:///tmp/router' }).success).toBe(false);
   });
+
+  it('validates and normalizes a custom prompt for one automation run', () => {
+    expect(schemas.automationRunOptions.parse({ customPrompt: '  Viết về GIS đô thị  ' }).customPrompt).toBe('Viết về GIS đô thị');
+    expect(schemas.automationRunOptions.parse({ customPrompt: '   ' }).customPrompt).toBe('');
+    expect(schemas.automationRunOptions.safeParse({ customPrompt: 'x'.repeat(4001) }).success).toBe(false);
+  });
 });

@@ -116,6 +116,8 @@ describe('content automation helpers', () => {
     const uploadDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cosmogis-images-'));
     temporaryDirectories.push(uploadDir);
     const queries = [];
+    const writerPrompts = [];
+    const discoveryUrls = [];
     const db = {
       query: vi.fn(async (sql, params = []) => {
         queries.push({ sql, params });
@@ -160,10 +162,12 @@ describe('content automation helpers', () => {
     };
     vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
       if (String(url).includes('html.duckduckgo.com/html/')) {
+        discoveryUrls.push(String(url));
         return new Response('<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2F93.184.216.34%2Farticle">Mars source</a><div class="result__extras">2026-08-07</div><a class="result__snippet">Summary</a></div>', { status: 200 });
       }
       if (String(url).endsWith('/chat/completions')) {
         const request = JSON.parse(options.body || '{}');
+        if (request.temperature !== 0) writerPrompts.push(request.messages?.[1]?.content || '');
         if (request.model === 'database-model') return new Response('temporary failure', { status: 500 });
         expect(request.model).toBe('backup-model');
         const isSchemaRepair = request.messages?.[0]?.content?.includes('bộ sửa cấu trúc JSON');
@@ -213,13 +217,17 @@ describe('content automation helpers', () => {
       uploadDir,
       publicApiUrl: 'https://api.cosmogis.test'
     });
-    const result = await service.run();
+    const result = await service.run('manual', { customPrompt: 'Tập trung vào ứng dụng GIS trong quản lý thiên tai.' });
     const postInsert = queries.find(query => query.sql.includes('INSERT INTO posts'));
 
     expect(result.status).toBe('draft');
     expect(result.qualityScore).toBeGreaterThan(50);
     expect(result.model).toBe('backup-model');
     expect(result.attempts).toBe(5);
+    expect(decodeURIComponent(discoveryUrls[0])).toContain('Tập trung vào ứng dụng GIS trong quản lý thiên tai.');
+    expect(decodeURIComponent(discoveryUrls[0])).not.toContain('Mars GIS');
+    expect(writerPrompts.some(prompt => prompt.includes('Tập trung vào ứng dụng GIS trong quản lý thiên tai.'))).toBe(true);
+    expect(writerPrompts.some(prompt => prompt.includes('Ưu tiên thuật ngữ GIS tiếng Việt.'))).toBe(false);
     const status = await service.status();
     expect(status.running).toBe(false);
     expect(status.progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 1, processedCandidates: 1 });

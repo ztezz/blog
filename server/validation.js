@@ -94,6 +94,7 @@ const schemas = {
   }),
   automationRunOptions: z.object({
     modelOverride: z.string().trim().min(1).max(200).optional(),
+    customPrompt: z.string().trim().max(4000).optional(),
     disableImages: z.boolean().optional().default(false),
     reuseSources: z.boolean().optional().default(false),
     parentRunId: id.optional()

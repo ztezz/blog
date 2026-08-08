@@ -126,6 +126,7 @@ export interface AutomationConnectionResult {
 
 export interface AutomationRunOptions {
   modelOverride?: string;
+  customPrompt?: string;
   disableImages?: boolean;
   reuseSources?: boolean;
   parentRunId?: string;

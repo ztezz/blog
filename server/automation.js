@@ -489,7 +489,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     const categoryResult = await db.query('SELECT name FROM categories ORDER BY name');
     const siteName = settingsResult.rows[0] ? `${settingsResult.rows[0].site_name_prefix || ''}${settingsResult.rows[0].site_name_suffix || ''}` : 'CosmoGIS';
     const automaticTopics = categoryResult.rows.map(category => `${siteName} ${category.name}`);
-    const topics = [...new Set([...config.discoveryTopics, ...automaticTopics])].slice(0, 3);
+    const topics = config.customPrompt
+      ? [config.customPrompt.replace(/\s+/g, ' ').slice(0, 500)]
+      : [...new Set([...config.discoveryTopics, ...automaticTopics])].slice(0, 3);
     const discovered = [];
     for (const topic of topics) {
       const query = `${topic} latest news ${new Date().getUTCFullYear()}`;
@@ -882,6 +884,10 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     try {
       const config = await loadConfig();
       if (options.modelOverride) config.model = options.modelOverride;
+      if (options.customPrompt?.trim()) {
+        config.customPrompt = options.customPrompt.trim();
+        config.editorialPrompt = config.customPrompt;
+      }
       if (options.disableImages) {
         config.imageGenerationEnabled = false;
         config.disableImages = true;
