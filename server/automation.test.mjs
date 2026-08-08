@@ -236,4 +236,44 @@ describe('content automation helpers', () => {
     expect((await service.status()).progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 0 });
   });
 
+  it('cancels an active run without creating a post', async () => {
+    const db = {
+      query: vi.fn(async sql => {
+        if (sql.includes('SELECT * FROM ai_automation_settings')) return { rows: [{
+          enabled: 1,
+          base_url: 'http://9router.test/v1',
+          api_key: '',
+          model: 'writer',
+          rss_feeds: '[]',
+          website_urls: '[]',
+          discovery_enabled: 1,
+          discovery_topics: '["GIS"]',
+          allowed_domains: '[]',
+          blocked_domains: '[]',
+          run_hour_utc: 1,
+          author: 'AI',
+          default_image_url: '/image.jpg'
+        }] };
+        if (sql.includes('SELECT site_name_prefix') || sql.includes('SELECT name FROM categories')) return { rows: [] };
+        return { rows: [], rowCount: 1 };
+      })
+    };
+    vi.stubGlobal('fetch', vi.fn((_url, options = {}) => new Promise((resolve, reject) => {
+      if (options.signal?.aborted) {
+        reject(options.signal.reason);
+        return;
+      }
+      options.signal?.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+    })));
+
+    const service = createAutomation({ db });
+    const runPromise = service.run();
+    await vi.waitFor(async () => expect((await service.status()).running).toBe(true));
+    expect(await service.cancel()).toEqual({ cancelled: true });
+    expect(await runPromise).toMatchObject({ status: 'cancelled' });
+    expect(await service.cancel()).toEqual({ cancelled: false, reason: 'not-running' });
+    expect((await service.status()).progress).toMatchObject({ stage: 'cancelled', percent: 100 });
+    expect(db.query).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO posts'), expect.anything());
+  });
+
 });

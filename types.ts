@@ -96,7 +96,7 @@ export interface AutomationConnectionResult {
 }
 
 export interface AutomationRunResult {
-  status: 'draft' | 'published' | 'skipped' | 'failed';
+  status: 'draft' | 'published' | 'skipped' | 'failed' | 'cancelled';
   completedAt?: string;
   postId?: string;
   title?: string;
@@ -120,7 +120,7 @@ export interface AutomationDiagnostics {
 }
 
 export interface AutomationProgress {
-  stage: 'config' | 'sources' | 'filtering' | 'reading' | 'writing' | 'verifying' | 'publishing' | 'completed' | 'failed';
+  stage: 'config' | 'sources' | 'filtering' | 'reading' | 'writing' | 'verifying' | 'publishing' | 'cancelling' | 'cancelled' | 'completed' | 'failed';
   message: string;
   percent: number;
   updatedAt: string;

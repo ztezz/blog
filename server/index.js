@@ -514,6 +514,14 @@ app.get('/api/automation/history', authenticate, authorize('admin'), async (req,
   }
 });
 
+app.post('/api/automation/cancel', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    return res.json(await automation.cancel());
+  } catch (error) {
+    return next(error);
+  }
+});
+
 app.post('/api/automation/run', authenticate, authorize('admin'), automationLimiter, async (req, res, next) => {
   try {
     const result = await automation.run();

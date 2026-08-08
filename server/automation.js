@@ -15,6 +15,12 @@ const { addHeadingIds } = require('./post-content');
 const USER_AGENT = 'CosmoGISBot/1.0 (+content research; configured sources only)';
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const cancellationError = () => Object.assign(new Error('Automation run was cancelled'), { code: 'AUTOMATION_CANCELLED' });
+const isCancellation = error => error?.code === 'AUTOMATION_CANCELLED' || (error?.name === 'AbortError' && error?.message === 'Automation run was cancelled');
+const requestSignal = (signal, timeoutMs) => signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
+const throwIfCancelled = signal => {
+  if (signal?.aborted) throw cancellationError();
+};
 const generatedPostSchema = z.object({
   title: z.string().trim().min(10).max(255),
   excerpt: z.string().trim().min(20).max(500),
@@ -186,18 +192,19 @@ const assertPublicUrl = async value => {
   return url;
 };
 
-const fetchSource = async (value, redirects = 0) => {
+const fetchSource = async (value, redirects = 0, signal) => {
+  throwIfCancelled(signal);
   const url = await assertPublicUrl(value);
   const response = await fetch(url, {
     redirect: 'manual',
-    signal: AbortSignal.timeout(15000),
+    signal: requestSignal(signal, 15000),
     headers: { 'User-Agent': USER_AGENT, Accept: 'text/html, application/rss+xml, application/atom+xml, application/xml, text/xml' }
   });
   if ([301, 302, 303, 307, 308].includes(response.status)) {
     if (redirects >= 3) throw new Error('Too many source redirects');
     const location = response.headers.get('location');
     if (!location) throw new Error('Source redirect is missing Location');
-    return fetchSource(new URL(location, url).href, redirects + 1);
+    return fetchSource(new URL(location, url).href, redirects + 1, signal);
   }
   if (!response.ok) throw new Error(`Source returned HTTP ${response.status}`);
   const contentLength = Number(response.headers.get('content-length') || 0);
@@ -207,18 +214,19 @@ const fetchSource = async (value, redirects = 0) => {
   return buffer.toString('utf8');
 };
 
-const fetchImage = async (value, redirects = 0) => {
+const fetchImage = async (value, redirects = 0, signal) => {
+  throwIfCancelled(signal);
   const url = await assertPublicUrl(value);
   const response = await fetch(url, {
     redirect: 'manual',
-    signal: AbortSignal.timeout(15000),
+    signal: requestSignal(signal, 15000),
     headers: { 'User-Agent': USER_AGENT, Accept: 'image/jpeg, image/png, image/gif, image/webp' }
   });
   if ([301, 302, 303, 307, 308].includes(response.status)) {
     if (redirects >= 3) throw new Error('Too many image redirects');
     const location = response.headers.get('location');
     if (!location) throw new Error('Image redirect is missing Location');
-    return fetchImage(new URL(location, url).href, redirects + 1);
+    return fetchImage(new URL(location, url).href, redirects + 1, signal);
   }
   if (!response.ok) throw new Error(`Image returned HTTP ${response.status}`);
   const contentLength = Number(response.headers.get('content-length') || 0);
@@ -230,10 +238,10 @@ const fetchImage = async (value, redirects = 0) => {
   return { buffer, imageType };
 };
 
-const robotsAllows = async value => {
+const robotsAllows = async (value, signal) => {
   const url = new URL(value);
   try {
-    const robots = await fetchSource(`${url.origin}/robots.txt`);
+    const robots = await fetchSource(`${url.origin}/robots.txt`, 0, signal);
     let applies = false;
     const disallowed = [];
     for (const rawLine of robots.split(/\r?\n/)) {
@@ -245,7 +253,8 @@ const robotsAllows = async value => {
       if (applies && field.toLowerCase() === 'disallow' && content) disallowed.push(content);
     }
     return !disallowed.some(path => url.pathname.startsWith(path));
-  } catch {
+  } catch (error) {
+    if (isCancellation(error) || signal?.aborted) throw cancellationError();
     return true;
   }
 };
@@ -305,6 +314,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
   let timer = null;
   let lastResult = null;
   let progress = null;
+  let activeController = null;
   const updateProgress = (stage, message, percent, details = {}) => {
     progress = { stage, message, percent, updatedAt: new Date().toISOString(), ...details };
   };
@@ -359,7 +369,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     if (!Number.isInteger(config.runHourUtc) || config.runHourUtc < 0 || config.runHourUtc > 23) throw new Error('AI_RUN_HOUR_UTC must be an integer from 0 to 23');
   };
 
-  const discoverCandidates = async (config, diagnostics) => {
+  const discoverCandidates = async (config, diagnostics, signal) => {
     const settingsResult = await db.query('SELECT site_name_prefix, site_name_suffix FROM settings WHERE id = 1');
     const categoryResult = await db.query('SELECT name FROM categories ORDER BY name');
     const siteName = settingsResult.rows[0] ? `${settingsResult.rows[0].site_name_prefix || ''}${settingsResult.rows[0].site_name_suffix || ''}` : 'CosmoGIS';
@@ -368,7 +378,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     const discovered = [];
     for (const topic of topics) {
       const query = `${topic} latest news ${new Date().getUTCFullYear()}`;
-      const html = await fetchSource(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&df=w`);
+      const html = await fetchSource(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}&df=w`, 0, signal);
       const results = parseDuckDuckGoResults(html);
       diagnostics.discoveryFound += results.length;
       for (const result of results) {
@@ -383,35 +393,38 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     return discovered;
   };
 
-  const collectCandidates = async (config, diagnostics) => {
+  const collectCandidates = async (config, diagnostics, signal) => {
     const candidates = [];
     if (config.discoveryEnabled) {
       try {
-        candidates.push(...await discoverCandidates(config, diagnostics));
+        candidates.push(...await discoverCandidates(config, diagnostics, signal));
       } catch (error) {
+        if (isCancellation(error) || signal?.aborted) throw cancellationError();
         diagnostics.errors.push(`DuckDuckGo: ${error.message}`);
         console.error('[Automation] DuckDuckGo discovery failed:', error.message);
       }
     }
     for (const feedUrl of config.rssFeeds) {
       try {
-        const xml = await fetchSource(feedUrl);
+        const xml = await fetchSource(feedUrl, 0, signal);
         const feedCandidates = parseFeed(xml, feedUrl);
         diagnostics.rssItems += feedCandidates.length;
         candidates.push(...feedCandidates);
       } catch (error) {
+        if (isCancellation(error) || signal?.aborted) throw cancellationError();
         diagnostics.errors.push(`RSS ${feedUrl}: ${error.message}`);
         console.error(`[Automation] RSS source failed (${feedUrl}):`, error.message);
       }
     }
     for (const websiteUrl of config.websites) {
       try {
-        if (!await robotsAllows(websiteUrl)) throw new Error('Source disallows crawling in robots.txt');
-        const html = await fetchSource(websiteUrl);
+        if (!await robotsAllows(websiteUrl, signal)) throw new Error('Source disallows crawling in robots.txt');
+        const html = await fetchSource(websiteUrl, 0, signal);
         const websiteLinks = extractArticleLinks(html, websiteUrl);
         diagnostics.websiteLinks += websiteLinks.length;
         candidates.push(...websiteLinks.map(url => ({ url, title: '', publishedAt: '', summary: '' })));
       } catch (error) {
+        if (isCancellation(error) || signal?.aborted) throw cancellationError();
         diagnostics.errors.push(`Website ${websiteUrl}: ${error.message}`);
         console.error(`[Automation] Website source failed (${websiteUrl}):`, error.message);
       }
@@ -438,7 +451,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     return result.rowCount > 0;
   };
 
-  const callAi = async (config, articles, categories) => {
+  const callAi = async (config, articles, categories, signal) => {
     const evidence = articles.map((article, index) => `[S${index + 1}] ${article.title}\nURL: ${article.url}\nDữ kiện:\n${article.content}`).join('\n\n---\n\n');
     const request = {
       model: config.model,
@@ -456,7 +469,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     };
     const send = body => fetch(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
-      signal: AbortSignal.timeout(120000),
+      signal: requestSignal(signal, 120000),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -484,7 +497,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     return generatedPostSchema.parse(JSON.parse(cleanJsonText(content)));
   };
 
-  const factCheck = async (config, generated, articles) => {
+  const factCheck = async (config, generated, articles, signal) => {
     const validSourceIds = new Set(articles.map((_, index) => `S${index + 1}`));
     const invalidCitations = generated.claims.flatMap((claim, claimIndex) => claim.sourceIds
       .filter(sourceId => !validSourceIds.has(sourceId))
@@ -496,7 +509,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     const evidence = articles.map((article, index) => `[S${index + 1}] ${article.title}\n${article.content}`).join('\n\n---\n\n');
     const response = await fetch(`${config.baseUrl}/chat/completions`, {
       method: 'POST',
-      signal: AbortSignal.timeout(120000),
+      signal: requestSignal(signal, 120000),
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
@@ -533,12 +546,13 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     return { supported, partial, unsupported, invalidCitations, assessments, hardFailures };
   };
 
-  const persistArticleImages = async article => {
+  const persistArticleImages = async (article, signal) => {
     const stored = [];
     await fs.mkdir(uploadDir, { recursive: true });
     for (const image of article.images.slice(0, 4)) {
+      throwIfCancelled(signal);
       try {
-        const { buffer, imageType } = await fetchImage(image.url);
+        const { buffer, imageType } = await fetchImage(image.url, 0, signal);
         const filename = `ai-${randomUUID()}${imageType.extension}`;
         await fs.writeFile(path.join(uploadDir, filename), buffer);
         stored.push({
@@ -547,6 +561,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           sourceUrl: image.url
         });
       } catch (error) {
+        if (isCancellation(error) || signal?.aborted) throw cancellationError();
         console.warn(`[Automation] Source image skipped (${image.url}):`, error.message);
       }
     }
@@ -577,6 +592,8 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
   const run = async () => {
     if (running) return { status: 'skipped', reason: 'already-running' };
     running = true;
+    activeController = new AbortController();
+    const signal = activeController.signal;
     updateProgress('config', 'Đang tải và kiểm tra cấu hình AI...', 5);
     try {
       const config = await loadConfig();
@@ -593,9 +610,10 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         errors: []
       };
       updateProgress('sources', 'Đang tìm nguồn từ DuckDuckGo, RSS và website...', 15, { diagnostics: { ...diagnostics } });
-      const candidates = await collectCandidates(config, diagnostics);
+      const candidates = await collectCandidates(config, diagnostics, signal);
       updateProgress('filtering', `Đã tìm thấy ${candidates.length} URL ứng viên. Đang lọc nguồn mới...`, 35, { diagnostics: { ...diagnostics }, totalCandidates: candidates.length, processedCandidates: 0 });
       for (const [index, candidate] of candidates.entries()) {
+        throwIfCancelled(signal);
         updateProgress('reading', `Đang đọc nguồn ${index + 1}/${candidates.length}...`, 40 + Math.min(20, Math.round((index / Math.max(candidates.length, 1)) * 20)), { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index });
         if (!await claimCandidate(candidate)) {
           diagnostics.alreadyProcessed += 1;
@@ -603,8 +621,8 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         }
         const claimedSourceUrls = [candidate.url];
         try {
-          if (!await robotsAllows(candidate.url)) throw new Error('Source disallows crawling in robots.txt');
-          const html = await fetchSource(candidate.url);
+          if (!await robotsAllows(candidate.url, signal)) throw new Error('Source disallows crawling in robots.txt');
+          const html = await fetchSource(candidate.url, 0, signal);
           const article = extractArticle(html, candidate.url, candidate);
           if (article.content.length < 200) throw new Error('Source article does not contain enough text');
           const contentHash = createHash('sha256').update(article.content.replace(/\s+/g, ' ').trim().toLowerCase()).digest('hex');
@@ -621,27 +639,29 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
             if (!await claimCandidate(relatedCandidate)) continue;
             claimedSourceUrls.push(relatedCandidate.url);
             try {
-              if (!await robotsAllows(relatedCandidate.url)) throw new Error('Source disallows crawling in robots.txt');
-              const relatedHtml = await fetchSource(relatedCandidate.url);
+              if (!await robotsAllows(relatedCandidate.url, signal)) throw new Error('Source disallows crawling in robots.txt');
+              const relatedHtml = await fetchSource(relatedCandidate.url, 0, signal);
               const relatedArticle = extractArticle(relatedHtml, relatedCandidate.url, relatedCandidate);
               if (relatedArticle.content.length < 200) throw new Error('Source article does not contain enough text');
               articles.push(relatedArticle);
             } catch (error) {
+              if (isCancellation(error) || signal.aborted) throw cancellationError();
               await db.query("UPDATE ai_generation_log SET status='failed', error=$1 WHERE source_url=$2", [String(error.message || error).slice(0, 1000), relatedCandidate.url]);
             }
           }
           const sourceUrls = articles.map(source => source.url);
           const combinedImages = { ...article, images: articles.flatMap(source => source.images).filter((image, imageIndex, images) => images.findIndex(candidateImage => candidateImage.url === image.url) === imageIndex) };
-          const storedImages = await persistArticleImages(combinedImages);
+          const storedImages = await persistArticleImages(combinedImages, signal);
           const categoryRows = await db.query('SELECT id, name FROM categories ORDER BY name');
           const categories = categoryRows.rows;
           updateProgress('writing', `Đã đọc ${articles.length} nguồn. 9Router đang đối chiếu và biên tập...`, 70, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
-          const generated = await callAi(config, articles, categories);
+          const generated = await callAi(config, articles, categories, signal);
           updateProgress('verifying', `Đang kiểm chứng ${generated.claims.length} dữ kiện với ${articles.length} nguồn...`, 82, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
           let verification;
           try {
-            verification = await factCheck(config, generated, articles);
+            verification = await factCheck(config, generated, articles, signal);
           } catch (error) {
+            if (isCancellation(error) || signal.aborted) throw cancellationError();
             verification = { supported: 0, partial: 0, unsupported: 0, invalidCitations: [], assessments: [], hardFailures: [`Không thể hoàn tất kiểm chứng: ${error.message || error}`] };
           }
           updateProgress('publishing', 'Đã kiểm chứng dữ kiện. Đang chấm chất lượng và lưu bài...', 90, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
@@ -673,6 +693,12 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           updateProgress('completed', postStatus === 'published' ? 'Đã đăng bài viết thành công.' : `Đã lưu bản nháp với điểm chất lượng ${quality.score}/100.`, 100, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           return lastResult;
         } catch (error) {
+          if (isCancellation(error) || signal.aborted) {
+            for (const sourceUrl of claimedSourceUrls) {
+              await db.query("UPDATE ai_generation_log SET status='cancelled', error='Cancelled by admin' WHERE source_url=$1 AND status='processing'", [sourceUrl]);
+            }
+            throw cancellationError();
+          }
           diagnostics.failed += 1;
           if (diagnostics.errors.length < 10) diagnostics.errors.push(`${candidate.url}: ${error.message || error}`);
           for (const sourceUrl of claimedSourceUrls) {
@@ -684,6 +710,11 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
       updateProgress('completed', 'Đã kiểm tra tất cả nguồn nhưng chưa tạo được bài mới.', 100, { diagnostics: { ...diagnostics }, totalCandidates: candidates.length, processedCandidates: candidates.length });
       return lastResult;
     } catch (error) {
+      if (isCancellation(error) || signal.aborted) {
+        lastResult = { status: 'cancelled', completedAt: new Date().toISOString() };
+        updateProgress('cancelled', 'Đã dừng lượt tạo bài theo yêu cầu.', 100);
+        return lastResult;
+      }
       lastResult = {
         status: 'failed',
         error: String(error.message || error).slice(0, 500),
@@ -693,6 +724,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
       throw error;
     } finally {
       running = false;
+      activeController = null;
     }
   };
 
@@ -723,6 +755,12 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
 
   return {
     run,
+    cancel: async () => {
+      if (!running || !activeController) return { cancelled: false, reason: 'not-running' };
+      activeController.abort(cancellationError());
+      updateProgress('cancelling', 'Đang dừng các tác vụ AI...', progress?.percent || 0);
+      return { cancelled: true };
+    },
     schedule,
     reschedule,
     status: async () => {

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from '../utils/router';
-import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send, ClipboardCheck, ExternalLink } from 'lucide-react';
-import { API_URL, approveDraftPost, getPosts, deletePost, getCurrentUser, getAutomationStatus, getDraftPosts, logout, isAuthenticated, rejectDraftPost, runAutomation } from '../utils/storage';
+import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send, ClipboardCheck, ExternalLink, Octagon } from 'lucide-react';
+import { API_URL, approveDraftPost, cancelAutomation, getPosts, deletePost, getCurrentUser, getAutomationStatus, getDraftPosts, logout, isAuthenticated, rejectDraftPost, runAutomation } from '../utils/storage';
 import { AutomationStatus, BlogPost } from '../types';
 
 const AdminDashboard: React.FC = () => {
@@ -13,6 +13,7 @@ const AdminDashboard: React.FC = () => {
   const [showAiControl, setShowAiControl] = useState(false);
   const [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(null);
   const [automationError, setAutomationError] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -137,6 +138,19 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const handleCancelAutomation = async () => {
+    setIsCancelling(true);
+    setAutomationError('');
+    try {
+      const result = await cancelAutomation();
+      if (!result.cancelled) setAutomationError('Không có lượt tạo bài nào đang chạy.');
+    } catch (error) {
+      setAutomationError(error instanceof Error ? error.message : 'Không thể dừng lượt tạo bài');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
       <div className="max-w-7xl mx-auto">
@@ -248,7 +262,7 @@ const AdminDashboard: React.FC = () => {
                         <span className="font-mono font-bold text-slate-500 dark:text-gray-400">{progress?.percent || 0}%</span>
                       </div>
                       <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-950">
-                        <div className={`h-full rounded-full transition-all duration-500 ${progress?.stage === 'failed' ? 'bg-red-500' : 'bg-gradient-to-r from-purple-600 to-sky-500'}`} style={{ width: `${progress?.percent || 3}%` }} />
+                        <div className={`h-full rounded-full transition-all duration-500 ${progress?.stage === 'failed' || progress?.stage === 'cancelled' ? 'bg-red-500' : progress?.stage === 'cancelling' ? 'bg-amber-500' : 'bg-gradient-to-r from-purple-600 to-sky-500'}`} style={{ width: `${progress?.percent || 3}%` }} />
                       </div>
                     </div>
 
@@ -270,6 +284,8 @@ const AdminDashboard: React.FC = () => {
                     {automationStatus?.lastResult?.status === 'published' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"><CheckCircle2 className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đăng bài thành công</p><p className="mt-1 text-sm">{automationStatus.lastResult.title}</p></div></div>}
                     {automationStatus?.lastResult?.status === 'draft' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-sky-300 bg-sky-50 p-4 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200"><ClipboardCheck className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đã lưu bản nháp chờ duyệt</p><p className="mt-1 text-sm">{automationStatus.lastResult.title} · {automationStatus.lastResult.sourceCount ?? 1} nguồn · Điểm {automationStatus.lastResult.qualityScore ?? 0}/100</p></div></div>}
                     {automationStatus?.lastResult?.status === 'skipped' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><AlertCircle className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Chưa tạo được bài mới</p><p className="mt-1 text-sm">Đã kiểm tra các nguồn nhưng không có nội dung mới phù hợp.</p></div></div>}
+                    {automationStatus?.lastResult?.status === 'cancelled' && !isGenerating && <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"><Octagon className="mt-0.5 shrink-0" size={21} /><div><p className="font-bold">Đã dừng lượt tạo bài</p><p className="mt-1 text-sm">Không có bài viết dở dang nào được lưu hoặc công khai.</p></div></div>}
+                    {isGenerating && <div className="flex justify-end"><button type="button" onClick={handleCancelAutomation} disabled={isCancelling} className="inline-flex items-center rounded-lg border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20">{isCancelling ? <LoaderCircle className="mr-2 animate-spin" size={17} /> : <Octagon className="mr-2" size={17} />}{isCancelling ? 'Đang dừng...' : 'Dừng tạo bài'}</button></div>}
                     {!isGenerating && <div className="flex justify-end"><button type="button" onClick={handleGeneratePost} className="inline-flex items-center rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-purple-700"><Sparkles className="mr-2" size={17} /> Chạy lượt mới</button></div>}
                   </div>
                 );

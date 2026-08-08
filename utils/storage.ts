@@ -236,6 +236,10 @@ export const runAutomation = async (): Promise<AutomationRunResult> => {
   return fetchApi<AutomationRunResult>('/automation/run', { method: 'POST' });
 };
 
+export const cancelAutomation = async (): Promise<{ cancelled: boolean; reason?: string }> => {
+  return fetchApi<{ cancelled: boolean; reason?: string }>('/automation/cancel', { method: 'POST' });
+};
+
 export const saveAutomationSettings = async (settings: AutomationSettings): Promise<AutomationSettings> => {
   return fetchApi<AutomationSettings>('/automation/settings', {
     method: 'POST',
