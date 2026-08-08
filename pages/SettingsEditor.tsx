@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from '../utils/router';
-import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft, Sparkles, CheckCircle2, AlertCircle, X } from 'lucide-react';
-import { getAutomationSettings, getSettings, saveAutomationSettings, saveSettings, isAuthenticated, uploadImage } from '../utils/storage';
+import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft, Sparkles, CheckCircle2, AlertCircle, X, PlugZap, LoaderCircle } from 'lucide-react';
+import { getAutomationSettings, getSettings, saveAutomationSettings, saveSettings, isAuthenticated, testAutomationConnection, uploadImage } from '../utils/storage';
 import { AutomationSettings, SiteSettings, NavItem } from '../types';
 import { DEFAULT_ABOUT_CONTENT, DEFAULT_CONTACT_CONTENT } from '../constants';
 
@@ -16,7 +16,12 @@ const SettingsEditor: React.FC = () => {
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings | null>(null);
   const [rssFeedsText, setRssFeedsText] = useState('');
   const [websitesText, setWebsitesText] = useState('');
+  const [discoveryTopicsText, setDiscoveryTopicsText] = useState('');
+  const [allowedDomainsText, setAllowedDomainsText] = useState('');
+  const [blockedDomainsText, setBlockedDomainsText] = useState('');
   const [automationError, setAutomationError] = useState('');
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionResult, setConnectionResult] = useState<{ type: 'success' | 'warning' | 'error', message: string } | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
   
@@ -43,6 +48,9 @@ const SettingsEditor: React.FC = () => {
       setAutomationSettings(loadedSettings);
       setRssFeedsText(loadedSettings.rssFeeds.join('\n'));
       setWebsitesText(loadedSettings.websites.join('\n'));
+      setDiscoveryTopicsText(loadedSettings.discoveryTopics.join('\n'));
+      setAllowedDomainsText(loadedSettings.allowedDomains.join('\n'));
+      setBlockedDomainsText(loadedSettings.blockedDomains.join('\n'));
     }).catch(error => console.error('Failed to load AI settings:', error));
   }, [navigate]);
 
@@ -253,11 +261,17 @@ const SettingsEditor: React.FC = () => {
         const saved = await saveAutomationSettings({
           ...automationSettings,
           rssFeeds: rssFeedsText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean),
-          websites: websitesText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean)
+          websites: websitesText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean),
+          discoveryTopics: discoveryTopicsText.split(/\r?\n/).map(value => value.trim()).filter(Boolean),
+          allowedDomains: allowedDomainsText.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean),
+          blockedDomains: blockedDomainsText.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean)
         });
         setAutomationSettings(saved);
         setRssFeedsText(saved.rssFeeds.join('\n'));
         setWebsitesText(saved.websites.join('\n'));
+        setDiscoveryTopicsText(saved.discoveryTopics.join('\n'));
+        setAllowedDomainsText(saved.allowedDomains.join('\n'));
+        setBlockedDomainsText(saved.blockedDomains.join('\n'));
       } else if (settings) {
       await saveSettings(settings);
       }
@@ -268,6 +282,29 @@ const SettingsEditor: React.FC = () => {
       else setNotification({ type: 'error', message });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!automationSettings) return;
+    setTestingConnection(true);
+    setConnectionResult(null);
+    try {
+      const result = await testAutomationConnection({
+        baseUrl: automationSettings.baseUrl,
+        apiKey: automationSettings.apiKey,
+        model: automationSettings.model
+      });
+      const details = `${result.latencyMs} ms, tìm thấy ${result.modelCount} model`;
+      if (result.modelAvailable === false) {
+        setConnectionResult({ type: 'warning', message: `Đã kết nối 9Router (${details}), nhưng không tìm thấy model "${automationSettings.model}".` });
+      } else {
+        setConnectionResult({ type: 'success', message: `Kết nối 9Router thành công (${details}).` });
+      }
+    } catch (error) {
+      setConnectionResult({ type: 'error', message: error instanceof Error ? error.message : 'Không thể kết nối 9Router' });
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -570,6 +607,24 @@ const SettingsEditor: React.FC = () => {
                     <input type="password" value={automationSettings.apiKey} onChange={event => setAutomationSettings({ ...automationSettings, apiKey: event.target.value, clearApiKey: false })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder={automationSettings.hasApiKey ? 'Để trống để giữ key hiện tại' : 'Có thể để trống nếu 9Router không yêu cầu'} autoComplete="new-password" />
                     {automationSettings.hasApiKey && <label className="flex items-center gap-2 mt-2 text-sm text-red-600 dark:text-red-400"><input type="checkbox" checked={automationSettings.clearApiKey || false} onChange={event => setAutomationSettings({ ...automationSettings, clearApiKey: event.target.checked, apiKey: '' })} /> Xóa API key đang lưu</label>}
                   </div>
+                  <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/60">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800 dark:text-white">Kiểm tra 9Router</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">Kiểm tra Base URL, API key và model hiện đang nhập. Không cần lưu cài đặt trước.</p>
+                      </div>
+                      <button type="button" onClick={handleTestConnection} disabled={testingConnection || !automationSettings.baseUrl} className="inline-flex shrink-0 items-center justify-center rounded-lg bg-purple-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50">
+                        {testingConnection ? <LoaderCircle className="mr-2 animate-spin" size={17} /> : <PlugZap className="mr-2" size={17} />}
+                        {testingConnection ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}
+                      </button>
+                    </div>
+                    {connectionResult && (
+                      <div className={`mt-4 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${connectionResult.type === 'success' ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300' : connectionResult.type === 'warning' ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300' : 'border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300'}`} role="status" aria-live="polite">
+                        {connectionResult.type === 'success' ? <CheckCircle2 className="mt-0.5 shrink-0" size={17} /> : <AlertCircle className="mt-0.5 shrink-0" size={17} />}
+                        <span>{connectionResult.message}</span>
+                      </div>
+                    )}
+                  </div>
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Tên tác giả</label>
                     <input type="text" value={automationSettings.author} onChange={event => setAutomationSettings({ ...automationSettings, author: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
@@ -598,16 +653,16 @@ const SettingsEditor: React.FC = () => {
                       <div className="md:col-span-2 rounded-lg bg-sky-50 p-4 text-sm text-sky-800 dark:bg-cyan-400/10 dark:text-cyan-300">DuckDuckGo chỉ tìm URL. Model 9Router ở phía trên vẫn đảm nhiệm đọc dữ kiện, biên tập lại bài tiếng Việt, chọn danh mục và tạo tags.</div>
                       <div>
                         <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Chủ đề bổ sung, mỗi dòng một chủ đề</label>
-                        <textarea rows={7} value={automationSettings.discoveryTopics.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, discoveryTopics: event.target.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder={'WebGIS mới nhất\nViễn thám và vệ tinh\nBản đồ Sao Hỏa'} />
+                        <textarea rows={7} value={discoveryTopicsText} onChange={event => setDiscoveryTopicsText(event.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" placeholder={'WebGIS mới nhất\nViễn thám và vệ tinh\nBản đồ Sao Hỏa'} />
                       </div>
                       <div>
                         <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Domain cho phép, mỗi dòng một domain</label>
-                        <textarea rows={7} value={automationSettings.allowedDomains.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, allowedDomains: event.target.value.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'nasa.gov\nesa.int\nsciencedaily.com'} />
+                        <textarea rows={7} value={allowedDomainsText} onChange={event => setAllowedDomainsText(event.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'nasa.gov\nesa.int\nsciencedaily.com'} />
                         <p className="text-xs text-slate-500 mt-1">Để trống để cho phép mọi public domain.</p>
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Domain chặn, mỗi dòng một domain</label>
-                        <textarea rows={4} value={automationSettings.blockedDomains.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, blockedDomains: event.target.value.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'spam.example\nlow-quality.example'} />
+                        <textarea rows={4} value={blockedDomainsText} onChange={event => setBlockedDomainsText(event.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'spam.example\nlow-quality.example'} />
                       </div>
                     </>
                   )}

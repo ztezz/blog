@@ -65,6 +65,11 @@ const schemas = {
     if (value.enabled && !value.model) context.addIssue({ code: 'custom', message: 'Model is required when automation is enabled', path: ['model'] });
     if (value.enabled && value.rssFeeds.length + value.websites.length === 0 && !value.discoveryEnabled) context.addIssue({ code: 'custom', message: 'At least one RSS feed, website or topic discovery must be enabled', path: ['rssFeeds'] });
   }),
+  automationConnectionTest: z.object({
+    baseUrl: httpUrl,
+    apiKey: z.string().max(1000).optional().default(''),
+    model: z.string().trim().max(200).optional().default('')
+  }),
   login: z.object({
     username: z.string().trim().min(1).max(50),
     password: z.string().max(200)

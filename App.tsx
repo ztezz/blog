@@ -2,6 +2,7 @@
 import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from './utils/router';
 import Layout from './components/Layout';
+import AdminAutomationNotifications from './components/AdminAutomationNotifications';
 
 const Home = lazy(() => import('./pages/Home'));
 const BlogList = lazy(() => import('./pages/BlogList'));
@@ -38,6 +39,7 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <AdminAutomationNotifications />
       <Layout>
         <Suspense fallback={<PageLoader />}>
           <Routes>

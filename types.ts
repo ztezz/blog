@@ -64,6 +64,32 @@ export interface AutomationSettings {
   defaultImageUrl: string;
 }
 
+export interface AutomationConnectionResult {
+  success: boolean;
+  latencyMs: number;
+  modelCount: number;
+  modelAvailable: boolean | null;
+}
+
+export interface AutomationRunResult {
+  status: 'published' | 'skipped' | 'failed';
+  completedAt: string;
+  postId?: string;
+  title?: string;
+  reason?: string;
+  error?: string;
+  diagnostics?: {
+    failed?: number;
+    errors?: string[];
+  };
+}
+
+export interface AutomationStatus {
+  enabled: boolean;
+  running: boolean;
+  lastResult: AutomationRunResult | null;
+}
+
 export interface User {
   id: string;
   username: string;

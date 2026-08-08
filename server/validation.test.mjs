@@ -92,4 +92,13 @@ describe('API request schemas', () => {
     expect(result.allowedDomains).toEqual(['science.nasa.gov', 'esa.int']);
     expect(result.blockedDomains).toEqual(['spam.example']);
   });
+
+  it('validates 9Router connection test input', () => {
+    expect(schemas.automationConnectionTest.parse({
+      baseUrl: 'localhost:20128/v1',
+      apiKey: '',
+      model: 'writer'
+    })).toEqual({ baseUrl: 'http://localhost:20128/v1', apiKey: '', model: 'writer' });
+    expect(schemas.automationConnectionTest.safeParse({ baseUrl: 'file:///tmp/router' }).success).toBe(false);
+  });
 });

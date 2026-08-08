@@ -411,7 +411,7 @@ const createAutomation = ({ db, env = process.env }) => {
             [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), config.defaultImageUrl, readingTime(content)]
           );
           await db.query("UPDATE ai_generation_log SET status='published', post_id=$1, published_at=CURRENT_TIMESTAMP WHERE source_url=$2", [postId, candidate.url]);
-          lastResult = { status: 'published', postId, sourceUrl: candidate.url, title: generated.title };
+          lastResult = { status: 'published', postId, sourceUrl: candidate.url, title: generated.title, completedAt: new Date().toISOString() };
           return lastResult;
         } catch (error) {
           diagnostics.failed += 1;
@@ -419,8 +419,15 @@ const createAutomation = ({ db, env = process.env }) => {
           await db.query("UPDATE ai_generation_log SET status='failed', error=$1 WHERE source_url=$2", [String(error.message || error).slice(0, 1000), candidate.url]);
         }
       }
-      lastResult = { status: 'skipped', reason: 'no-new-source', diagnostics };
+      lastResult = { status: 'skipped', reason: 'no-new-source', diagnostics, completedAt: new Date().toISOString() };
       return lastResult;
+    } catch (error) {
+      lastResult = {
+        status: 'failed',
+        error: String(error.message || error).slice(0, 500),
+        completedAt: new Date().toISOString()
+      };
+      throw error;
     } finally {
       running = false;
     }

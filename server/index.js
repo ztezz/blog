@@ -417,6 +417,46 @@ app.get('/api/automation/settings', authenticate, authorize('admin'), async (req
   }
 });
 
+app.post('/api/automation/test-connection', authenticate, authorize('admin'), automationLimiter, validateBody(schemas.automationConnectionTest), async (req, res) => {
+  const startedAt = Date.now();
+  try {
+    const savedSettings = await ensureAutomationSettings(db);
+    const baseUrl = req.body.baseUrl.replace(/\/$/, '');
+    const apiKey = req.body.apiKey || savedSettings.api_key || '';
+    const response = await fetch(`${baseUrl}/models`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(15000),
+      headers: {
+        Accept: 'application/json',
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+      }
+    });
+    if (!response.ok) {
+      return res.status(502).json({
+        error: `9Router returned HTTP ${response.status}`,
+        code: 'AI_CONNECTION_REJECTED'
+      });
+    }
+    const payload = await response.json();
+    const models = Array.isArray(payload?.data)
+      ? payload.data.map(item => typeof item === 'string' ? item : item?.id).filter(id => typeof id === 'string')
+      : [];
+    return res.json({
+      success: true,
+      latencyMs: Date.now() - startedAt,
+      modelCount: models.length,
+      modelAvailable: req.body.model ? models.includes(req.body.model) : null
+    });
+  } catch (error) {
+    const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
+    console.error('[Automation] 9Router connection test failed:', error);
+    return res.status(502).json({
+      error: timedOut ? '9Router connection timed out after 15 seconds' : 'Unable to connect to 9Router',
+      code: timedOut ? 'AI_CONNECTION_TIMEOUT' : 'AI_CONNECTION_FAILED'
+    });
+  }
+});
+
 app.post('/api/automation/settings', authenticate, authorize('admin'), validateBody(schemas.automationSettings), async (req, res) => {
   try {
     const settings = req.body;
