@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import automation from './automation.js';
 
-const { containsPolicyPhrase, createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime, selectRelatedCandidates, sourceSimilarity } = automation;
+const { containsPolicyPhrase, createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeGeneratedPost, normalizeImageUrl, normalizeSourceIds, parseDuckDuckGoResults, parseFeed, readingTime, selectRelatedCandidates, sourceSimilarity } = automation;
 
 const temporaryDirectories = [];
 
@@ -91,6 +91,21 @@ describe('content automation helpers', () => {
     expect(containsPolicyPhrase('Nền tảng logistics hiện đại', 'GIS')).toBe(false);
     expect(containsPolicyPhrase('Bất kỳ nội dung nào', '  ')).toBe(false);
     expect(containsPolicyPhrase('Bản đồ Sao Hỏa', 'cá cược')).toBe(false);
+  });
+
+  it('normalizes common claim aliases without inventing source citations', () => {
+    expect(normalizeGeneratedPost({ claims: [
+      { claim: 'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình Sao Hỏa.', sources: ['[S1]', 'S2'] },
+      { statement: 'Ảnh quỹ đạo cung cấp bằng chứng địa hình chi tiết.', citations: [1, { id: 'S3' }] },
+      { assertion: 'Mô hình địa hình được xây dựng từ ảnh quỹ đạo.', source: '[S2]' },
+      { fact: 'Dữ kiện chưa có trích dẫn.' }
+    ] }).claims).toEqual([
+      expect.objectContaining({ text: 'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình Sao Hỏa.', sourceIds: ['S1', 'S2'] }),
+      expect.objectContaining({ text: 'Ảnh quỹ đạo cung cấp bằng chứng địa hình chi tiết.', sourceIds: ['S1', 'S3'] }),
+      expect.objectContaining({ text: 'Mô hình địa hình được xây dựng từ ảnh quỹ đạo.', sourceIds: ['S2'] }),
+      expect.objectContaining({ text: 'Dữ kiện chưa có trích dẫn.', sourceIds: [] })
+    ]);
+    expect(normalizeSourceIds(['source S2 and S4', 'không có mã nguồn'])).toEqual(['S2', 'S4']);
   });
 
   it('creates one sanitized AI draft with a quality score and records its source', async () => {
