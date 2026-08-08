@@ -66,7 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       setSettings(data);
     };
     fetchSettings();
-  }, [location]);
+  }, []);
 
   useEffect(() => {
     const handleSettingsUpdate = (event: Event) => setSettings((event as CustomEvent<SiteSettings>).detail);

@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from '../utils/router';
 import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft, Sparkles, CheckCircle2, AlertCircle, X, PlugZap, LoaderCircle } from 'lucide-react';
-import { getAutomationSettings, getSettings, saveAutomationSettings, saveSettings, isAuthenticated, testAutomationConnection, uploadImage } from '../utils/storage';
+import { getAutomationSettings, saveAutomationSettings, saveSettings, isAuthenticated, testAutomationConnection, uploadImage } from '../utils/storage';
 import { AutomationSettings, SiteSettings, NavItem } from '../types';
 import { DEFAULT_ABOUT_CONTENT, DEFAULT_CONTACT_CONTENT } from '../constants';
+import { useSiteSettings } from '../components/Layout';
 
 type SettingsTab = 'general' | 'menu' | 'pages' | 'automation';
 
@@ -17,7 +18,8 @@ const settingsTabs = [
 
 const SettingsEditor: React.FC = () => {
   const navigate = useNavigate();
-  const [settings, setSettings] = useState<SiteSettings | null>(null);
+  const siteSettings = useSiteSettings();
+  const [settings, setSettings] = useState<SiteSettings | null>(siteSettings);
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -49,14 +51,11 @@ const SettingsEditor: React.FC = () => {
       navigate('/admin');
       return;
     }
-    const load = async () => {
-      const s = await getSettings();
-      // Pre-fill with defaults if empty so user has something to edit
-      if (!s.aboutContent) s.aboutContent = DEFAULT_ABOUT_CONTENT;
-      if (!s.contactContent) s.contactContent = DEFAULT_CONTACT_CONTENT;
-      setSettings(s);
-    };
-    load();
+    setSettings(current => current ? {
+      ...current,
+      aboutContent: current.aboutContent || DEFAULT_ABOUT_CONTENT,
+      contactContent: current.contactContent || DEFAULT_CONTACT_CONTENT
+    } : current);
     getAutomationSettings().then(loadedSettings => {
       setAutomationSettings(loadedSettings);
       setRssFeedsText(loadedSettings.rssFeeds.join('\n'));

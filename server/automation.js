@@ -509,6 +509,15 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     }
   };
 
+  const gatewayFailure = (error, config, attempts) => {
+    const detail = String(error?.message || error || 'Unknown gateway error').slice(0, 300);
+    const failure = new Error(`Không thể tạo bài qua 9Router (${config.baseUrl}) sau ${attempts} lượt gọi: ${detail}`);
+    failure.automationFatal = true;
+    failure.code = 'AI_GATEWAY_FAILED';
+    failure.cause = error;
+    return failure;
+  };
+
   const callGateway = async (config, request, parseContent, signal) => {
     const models = [...new Set([config.model, ...config.fallbackModels].filter(Boolean))];
     let attempts = 0;
@@ -526,7 +535,10 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           });
           let response = await send({ ...request, response_format: { type: 'json_object' } });
           if (response.status === 400) response = await send(request);
-          if (!response.ok) throw Object.assign(new Error(`AI gateway returned HTTP ${response.status}`), { retryable: response.status === 429 || response.status >= 500 });
+          if (!response.ok) {
+            const responseDetail = (await response.text()).replace(/\s+/g, ' ').trim().slice(0, 200);
+            throw Object.assign(new Error(`9Router trả HTTP ${response.status}${responseDetail ? `: ${responseDetail}` : ''}`), { retryable: response.status === 429 || response.status >= 500 });
+          }
           const payload = await parseGatewayPayload(response);
           const content = payload?.choices?.[0]?.message?.content;
           if (typeof content !== 'string') throw Object.assign(new Error('AI gateway returned an invalid response'), { retryable: true });
@@ -534,14 +546,14 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         } catch (error) {
           if (isCancellation(error) || signal?.aborted) throw cancellationError();
           const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
-          const retryable = timedOut || error?.retryable || error?.name === 'ZodError' || error instanceof SyntaxError;
+          const retryable = timedOut || error?.retryable || error?.name === 'ZodError' || error instanceof SyntaxError || error instanceof TypeError;
           lastError = error;
-          if (!retryable) throw error;
+          if (!retryable) throw gatewayFailure(error, config, attempts);
           if (retry < config.retryCount) await waitForRetry(250 * (2 ** retry), signal);
         }
       }
     }
-    throw lastError || new Error('All 9Router models failed');
+    throw gatewayFailure(lastError || new Error('Tất cả model đã thất bại'), config, attempts);
   };
 
   const callAi = async (config, articles, categories, signal) => {
@@ -854,6 +866,10 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           if (diagnostics.errors.length < 10) diagnostics.errors.push(`${candidate.url}: ${error.message || error}`);
           for (const sourceUrl of claimedSourceUrls) {
             await db.query("UPDATE ai_generation_log SET status='failed', error=$1 WHERE source_url=$2 AND status='processing'", [String(error.message || error).slice(0, 1000), sourceUrl]);
+          }
+          if (error?.automationFatal) {
+            diagnostics.errors.push(`9Router: ${error.message}`);
+            throw error;
           }
         }
       }

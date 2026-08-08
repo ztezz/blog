@@ -243,6 +243,58 @@ describe('content automation helpers', () => {
     expect(invalid).toEqual([{ claimIndex: 0, sourceId: 'S3' }]);
   });
 
+  it('stops the whole run instead of cycling through sources when 9Router rejects the writer request', async () => {
+    const queries = [];
+    const db = {
+      query: vi.fn(async (sql, params = []) => {
+        queries.push({ sql, params });
+        if (sql.includes('SELECT * FROM ai_automation_settings')) return { rows: [{
+          enabled: 1,
+          base_url: 'http://9router.test/v1',
+          api_key: 'invalid-key',
+          model: 'missing-model',
+          rss_feeds: '[]',
+          website_urls: '[]',
+          discovery_enabled: 1,
+          discovery_provider: 'duckduckgo',
+          discovery_topics: '["Mars GIS"]',
+          allowed_domains: '["93.184.216.34"]',
+          blocked_domains: '[]',
+          run_hour_utc: 1,
+          author: 'AI',
+          default_image_url: '/image.jpg',
+          fallback_models: '[]',
+          retry_count: 0
+        }] };
+        if (sql.includes('INSERT INTO ai_generation_log')) return { rowCount: 1, rows: [] };
+        if (sql.includes('SELECT site_name_prefix')) return { rows: [{ site_name_prefix: 'COSMO', site_name_suffix: 'GIS' }] };
+        if (sql.includes('SELECT name FROM categories')) return { rows: [{ name: 'Công nghệ vũ trụ' }] };
+        if (sql.includes('SELECT id, name FROM categories')) return { rows: [{ id: 'space-tech', name: 'Công nghệ vũ trụ' }] };
+        return { rows: [], rowCount: 1 };
+      })
+    };
+    const chatRequests = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
+      if (String(url).includes('html.duckduckgo.com/html/')) return new Response([
+        '<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2F93.184.216.34%2Farticle-one">Mars mapping one</a><a class="result__snippet">Satellite terrain mapping evidence</a></div>',
+        '<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2F93.184.216.34%2Farticle-two">Mars mapping two</a><a class="result__snippet">Independent orbital mapping evidence</a></div>'
+      ].join(''), { status: 200 });
+      if (String(url).endsWith('/chat/completions')) {
+        chatRequests.push(JSON.parse(options.body || '{}'));
+        return new Response('invalid API key', { status: 401 });
+      }
+      if (String(url).endsWith('/robots.txt')) return new Response('User-agent: *\nAllow: /', { status: 200 });
+      return new Response(`<article><h1>Mars mapping source</h1><p>${'Satellite observations provide detailed terrain mapping evidence. '.repeat(12)}</p></article>`, { status: 200 });
+    }));
+
+    const service = createAutomation({ db });
+    await expect(service.run()).rejects.toThrow('Không thể tạo bài qua 9Router (http://9router.test/v1) sau 1 lượt gọi: 9Router trả HTTP 401: invalid API key');
+    expect(chatRequests).toHaveLength(1);
+    expect((await service.status()).lastResult).toMatchObject({ status: 'failed', error: expect.stringContaining('HTTP 401') });
+    expect(queries.filter(query => query.sql.includes('INSERT INTO ai_generation_log'))).toHaveLength(1);
+    expect(queries.some(query => query.sql.includes('UPDATE ai_automation_runs SET status=$1') && query.params[0] === 'failed')).toBe(true);
+  });
+
   it('returns diagnostics when topic discovery finds no source', async () => {
     const db = {
       query: vi.fn(async sql => {

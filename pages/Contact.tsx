@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Send } from 'lucide-react';
-import { sendMessage, getSettings } from '../utils/storage';
+import { sendMessage } from '../utils/storage';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { DEFAULT_CONTACT_CONTENT } from '../constants';
 import { useSiteSettings } from '../components/Layout';
@@ -15,20 +15,9 @@ const Contact: React.FC = () => {
     message: ''
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [contactContent, setContactContent] = useState('');
   const [loading, setLoading] = useState(false);
   const siteName = settings ? `${settings.siteNamePrefix}${settings.siteNameSuffix}`.trim() : 'website';
-
-  useEffect(() => {
-    getSettings().then(s => {
-      if (s.contactContent) {
-        setContactContent(s.contactContent);
-      } else {
-        // Default Content
-        setContactContent(DEFAULT_CONTACT_CONTENT);
-      }
-    });
-  }, []);
+  const contactContent = settings?.contactContent || DEFAULT_CONTACT_CONTENT;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
