@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from '../utils/router';
-import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send, ClipboardCheck, ExternalLink, Octagon, Activity, BarChart3 } from 'lucide-react';
+import { Edit, Trash2, Plus, LogOut, Settings, Users, Mail, Layers, Database, Sparkles, X, LoaderCircle, CheckCircle2, AlertCircle, Search, FileText, Cpu, Send, ClipboardCheck, ExternalLink, Octagon, Activity, BarChart3, BookOpen, ShieldCheck, ArrowUpRight } from 'lucide-react';
 import { API_URL, approveDraftPost, cancelAutomation, getPosts, deletePost, getCurrentUser, getAutomationRuns, getAutomationStatistics, getAutomationStatus, getDraftPosts, logout, isAuthenticated, rejectDraftPost, runAutomation } from '../utils/storage';
 import { AutomationRunHistory, AutomationStatistics, AutomationStatus, BlogPost } from '../types';
 
@@ -165,73 +165,57 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  const currentUser = getCurrentUser();
+  const categoryCount = new Set(posts.map(post => post.category)).size;
+  const latestPost = posts[0];
+  const quickActions = [
+    { label: 'Viết bài mới', description: 'Tạo và xuất bản nội dung thủ công', icon: Plus, to: '/admin/create', accent: 'sky' },
+    { label: 'Hộp thư', description: 'Đọc phản hồi từ độc giả', icon: Mail, to: '/admin/mailbox', accent: 'violet' },
+    { label: 'Danh mục', description: 'Tổ chức kho nội dung', icon: Layers, to: '/admin/categories', accent: 'amber' },
+    { label: 'Cài đặt', description: 'Thương hiệu, menu và tự động AI', icon: Settings, to: '/admin/settings', accent: 'slate' }
+  ] as const;
+  const quickActionAccent = {
+    sky: 'bg-sky-100 text-sky-700 dark:bg-cyan-400/10 dark:text-cyan-300',
+    violet: 'bg-violet-100 text-violet-700 dark:bg-violet-400/10 dark:text-violet-300',
+    amber: 'bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300',
+    slate: 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200'
+  };
+
   return (
-    <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-          <h1 className="text-3xl font-display font-bold text-slate-900 dark:text-white">Bảng Điều Khiển</h1>
-          <div className="flex flex-wrap gap-3 items-center justify-center">
-            <Link 
-              to="/admin/create" 
-              className="flex items-center px-4 py-2 bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950 rounded font-bold hover:bg-sky-600 dark:hover:bg-cyan-300 transition-colors"
-            >
-              <Plus size={18} className="mr-2" /> Viết bài mới
-            </Link>
-            <div className="h-6 w-px bg-slate-300 dark:bg-white/20 hidden md:block"></div>
-            
-            <Link 
-              to="/admin/mailbox" 
-              className="flex items-center px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-white border border-slate-300 dark:border-white/20 rounded font-bold hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-sky-600 dark:hover:text-cyan-400 transition-colors"
-            >
-              <Mail size={18} className="mr-2" /> Hộp thư
-            </Link>
-            
-            <Link 
-              to="/admin/users" 
-              className="flex items-center px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-white border border-slate-300 dark:border-white/20 rounded font-bold hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-sky-600 dark:hover:text-cyan-400 transition-colors"
-            >
-              <Users size={18} className="mr-2" /> Users
-            </Link>
-
-             <Link 
-              to="/admin/categories" 
-              className="flex items-center px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-white border border-slate-300 dark:border-white/20 rounded font-bold hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-sky-600 dark:hover:text-cyan-400 transition-colors"
-            >
-              <Layers size={18} className="mr-2" /> Danh mục
-            </Link>
-
-            <Link 
-              to="/admin/settings" 
-              className="flex items-center px-4 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-white border border-slate-300 dark:border-white/20 rounded font-bold hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-sky-600 dark:hover:text-cyan-400 transition-colors"
-            >
-              <Settings size={18} className="mr-2" /> Cài đặt
-            </Link>
-
-            <button
-              onClick={openAiControl}
-              className="flex items-center rounded bg-purple-600 px-4 py-2 font-bold text-white transition-colors hover:bg-purple-700"
-              title="Lấy nguồn mới và đăng bài bằng AI"
-            >
-              {isGenerating ? <LoaderCircle size={18} className="mr-2 animate-spin" /> : <Sparkles size={18} className="mr-2" />} {isGenerating ? 'Xem tiến trình AI' : 'Tạo bài AI'}
-            </button>
-
-            <button 
-              onClick={handleRestoreDb}
-              disabled={isRestoring}
-              className={`flex items-center px-4 py-2 ${isRestoring ? 'bg-gray-300 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600'} text-white rounded font-bold transition-colors`}
-              title="Khôi phục database từ file .sql"
-            >
-              <Database size={18} className="mr-2" /> {isRestoring ? 'Đang khôi phục...' : 'Khôi phục DB'}
-            </button>
-
-            <button 
-              onClick={handleLogout}
-              className="flex items-center px-4 py-2 border border-red-500 text-red-500 rounded hover:bg-red-500/10 transition-colors ml-2"
-            >
-              <LogOut size={18} className="mr-2" /> Thoát
-            </button>
+    <div className="min-h-screen bg-slate-50 px-4 pb-12 pt-8 dark:bg-slate-950 sm:px-6 sm:pt-10 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <header className="relative mb-6 overflow-hidden rounded-3xl bg-slate-950 px-6 py-8 text-white shadow-2xl shadow-slate-900/15 sm:px-8 lg:px-10 lg:py-10">
+          <div className="pointer-events-none absolute -right-20 -top-36 h-96 w-96 rounded-full border border-cyan-300/15" />
+          <div className="pointer-events-none absolute -right-4 -top-20 h-64 w-64 rounded-full border border-violet-300/15" />
+          <div className="pointer-events-none absolute bottom-0 left-1/3 h-32 w-80 bg-cyan-400/10 blur-[70px]" />
+          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-cyan-300"><ShieldCheck size={15} /> Admin workspace</div>
+              <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Chào {currentUser?.displayName || currentUser?.username}</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">Theo dõi nội dung, kiểm duyệt bài AI và điều phối hoạt động xuất bản từ một trung tâm duy nhất.</p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button onClick={openAiControl} className="inline-flex items-center rounded-xl bg-violet-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 hover:bg-violet-400" title="Lấy nguồn mới và đăng bài bằng AI">{isGenerating ? <LoaderCircle size={18} className="mr-2 animate-spin" /> : <Sparkles size={18} className="mr-2" />}{isGenerating ? 'Xem tiến trình AI' : 'Tạo bài bằng AI'}</button>
+              <Link to="/admin/create" className="inline-flex items-center rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-slate-950 transition hover:-translate-y-0.5 hover:bg-white"><Plus size={18} className="mr-2" /> Viết bài mới</Link>
+              <button onClick={handleLogout} className="inline-flex items-center rounded-xl border border-white/15 bg-white/5 px-3 py-3 text-slate-300 transition hover:bg-white/10 hover:text-white" aria-label="Đăng xuất" title="Đăng xuất"><LogOut size={18} /></button>
+            </div>
           </div>
-        </div>
+        </header>
+
+        <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Tổng quan nội dung">
+          {[
+            { label: 'Bài đã xuất bản', value: posts.length, detail: latestPost ? `Mới nhất: ${latestPost.date}` : 'Chưa có bài viết', icon: BookOpen, color: 'text-sky-600 dark:text-cyan-300' },
+            { label: 'Chờ kiểm duyệt', value: drafts.length, detail: drafts.length > 0 ? 'Cần xử lý nội dung AI' : 'Không có việc tồn đọng', icon: ClipboardCheck, color: drafts.length > 0 ? 'text-amber-600' : 'text-emerald-600' },
+            { label: 'Danh mục hoạt động', value: categoryCount, detail: 'Đang có bài xuất bản', icon: Layers, color: 'text-violet-600 dark:text-violet-300' },
+            { label: 'Điểm AI trung bình', value: automationStatistics?.average_quality ?? '-', detail: automationStatistics ? `${automationStatistics.total} lượt đã ghi nhận` : 'Đang tải thống kê', icon: Activity, color: 'text-emerald-600 dark:text-emerald-300' }
+          ].map(({ label, value, detail, icon: Icon, color }) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900/70 sm:p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p><p className={`mt-2 font-display text-3xl font-bold ${color}`}>{value}</p></div><span className="rounded-xl bg-slate-100 p-2 text-slate-500 dark:bg-white/5 dark:text-slate-300"><Icon size={19} /></span></div><p className="mt-3 truncate text-xs text-slate-500 dark:text-slate-400" title={detail}>{detail}</p></div>)}
+        </section>
+
+        <section className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Tác vụ nhanh">
+          {quickActions.map(({ label, description, icon: Icon, to, accent }) => <Link key={to} to={to} className="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg dark:border-white/10 dark:bg-slate-900/60 dark:hover:border-white/20"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${quickActionAccent[accent]}`}><Icon size={19} /></span><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-900 dark:text-white">{label}</span><span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">{description}</span></span><ArrowUpRight className="text-slate-300 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-600 dark:group-hover:text-white" size={17} /></Link>)}
+        </section>
+
+        {currentUser?.role === 'admin' && <div className="mb-8 flex flex-wrap items-center justify-end gap-3 border-b border-slate-200 pb-5 dark:border-white/10"><Link to="/admin/users" className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-white hover:text-sky-700 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-cyan-300"><Users className="mr-2" size={16} /> Người dùng</Link><button onClick={handleRestoreDb} disabled={isRestoring} className="inline-flex items-center rounded-lg px-3 py-2 text-sm font-bold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-amber-300 dark:hover:bg-amber-400/10" title="Khôi phục database từ file .sql"><Database className="mr-2" size={16} /> {isRestoring ? 'Đang khôi phục...' : 'Khôi phục database'}</button></div>}
 
         {showAiControl && (
           <section className="mb-8 overflow-hidden rounded-2xl border border-purple-200 bg-white shadow-xl dark:border-purple-500/20 dark:bg-slate-800" aria-labelledby="ai-control-title">
@@ -384,52 +368,56 @@ const AdminDashboard: React.FC = () => {
           </section>
         )}
 
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-white/10 overflow-hidden shadow-lg dark:shadow-none">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg dark:border-white/10 dark:bg-slate-900/70" aria-labelledby="published-posts-title">
+          <div className="flex flex-col gap-4 border-b border-slate-200 p-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+            <div><h2 id="published-posts-title" className="flex items-center text-xl font-bold text-slate-900 dark:text-white"><BookOpen className="mr-2 text-sky-600 dark:text-cyan-300" size={21} /> Nội dung đã xuất bản</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Quản lý {posts.length} bài viết đang hiển thị trên website.</p></div>
+            <Link to="/admin/create" className="inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-sky-700 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"><Plus className="mr-2" size={17} /> Thêm bài viết</Link>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
+            <table className="w-full min-w-[760px] border-collapse text-left">
               <thead>
-                <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-white/10">
-                  <th className="p-4 text-slate-500 dark:text-gray-400 font-medium">Tiêu đề</th>
-                  <th className="p-4 text-slate-500 dark:text-gray-400 font-medium">Danh mục</th>
-                  <th className="p-4 text-slate-500 dark:text-gray-400 font-medium">Ngày đăng</th>
-                  <th className="p-4 text-slate-500 dark:text-gray-400 font-medium text-right">Hành động</th>
+                <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-slate-950/60">
+                  <th className="px-5 py-3 font-bold">Bài viết</th>
+                  <th className="px-5 py-3 font-bold">Danh mục</th>
+                  <th className="px-5 py-3 font-bold">Ngày đăng</th>
+                  <th className="px-5 py-3 text-right font-bold">Hành động</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {posts.map((post) => (
-                  <tr key={post.id} className="border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                    <td className="p-4 font-bold text-slate-800 dark:text-white">
-                      <div className="truncate max-w-[300px]">{post.title}</div>
+                  <tr key={post.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[0.03]">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3"><img src={post.imageUrl} alt="" className="h-12 w-16 shrink-0 rounded-lg bg-slate-100 object-cover dark:bg-white/5" /><div className="min-w-0"><p className="max-w-[390px] truncate font-bold text-slate-900 dark:text-white" title={post.title}>{post.title}</p><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{post.readTime} · {post.author}</p></div></div>
                     </td>
-                    <td className="p-4 text-sky-600 dark:text-cyan-400">{post.category}</td>
-                    <td className="p-4 text-slate-600 dark:text-gray-400">{post.date}</td>
-                    <td className="p-4 flex justify-end space-x-3">
+                    <td className="px-5 py-4"><span className="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-700 dark:bg-cyan-400/10 dark:text-cyan-300">{post.category}</span></td>
+                    <td className="px-5 py-4 text-sm text-slate-500 dark:text-slate-400">{post.date}</td>
+                    <td className="px-5 py-4"><div className="flex justify-end gap-2">
                       <Link 
                         to={`/admin/edit/${post.id}`} 
-                        className="p-2 text-blue-500 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-400/10 rounded transition-colors"
-                        title="Sửa"
+                        className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 dark:border-white/10 dark:text-slate-300 dark:hover:border-cyan-400/30 dark:hover:bg-cyan-400/10 dark:hover:text-cyan-300"
+                        title="Chỉnh sửa bài viết"
                       >
-                        <Edit size={18} />
+                        <Edit className="mr-1.5" size={14} /> Sửa
                       </Link>
                       <button 
                         onClick={() => handleDelete(post.id)}
-                        className="p-2 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-400/10 rounded transition-colors"
-                        title="Xóa"
+                        className="inline-flex items-center rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 dark:border-red-500/20 dark:text-red-400 dark:hover:bg-red-500/10"
+                        title="Xóa bài viết"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 className="mr-1.5" size={14} /> Xóa
                       </button>
-                    </td>
+                    </div></td>
                   </tr>
                 ))}
                 {posts.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-500 dark:text-gray-500">Chưa có bài viết nào.</td>
+                    <td colSpan={4} className="px-5 py-14 text-center text-slate-500 dark:text-slate-400"><BookOpen className="mx-auto mb-3 opacity-40" size={36} /><p className="font-bold text-slate-700 dark:text-slate-300">Chưa có bài viết nào</p><p className="mt-1 text-sm">Bắt đầu bằng một bài viết thủ công hoặc tạo nội dung với AI.</p></td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
