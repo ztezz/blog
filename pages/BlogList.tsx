@@ -2,9 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from '../utils/router';
 import { Search, Filter, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
-import { CATEGORIES } from '../constants';
-import { getPosts } from '../utils/storage';
-import { BlogPost } from '../types';
+import { getCategories, getPosts } from '../utils/storage';
+import { BlogPost, Category } from '../types';
 
 const POSTS_PER_PAGE = 6;
 
@@ -16,15 +15,24 @@ const BlogList: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [allPosts, setAllPosts] = useState<BlogPost[]>([]);
   const [filteredPosts, setFilteredPosts] = useState<BlogPost[]>([]);
+  const [categories, setCategories] = useState<Category[]>([{ id: 'all', name: 'Tất cả' }]);
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
 
   // Initial Fetch
   useEffect(() => {
-    getPosts().then(posts => {
+    Promise.all([getPosts(), getCategories()]).then(([posts, loadedCategories]) => {
       setAllPosts(posts);
       setFilteredPosts(posts);
+      const categoryNames = new Map(loadedCategories.map(category => [category.id, category.name]));
+      posts.forEach(post => {
+        if (post.category && !categoryNames.has(post.category)) categoryNames.set(post.category, post.category);
+      });
+      setCategories([
+        { id: 'all', name: 'Tất cả' },
+        ...Array.from(categoryNames, ([id, name]) => ({ id, name })).sort((first, second) => first.name.localeCompare(second.name, 'vi'))
+      ]);
     });
   }, []);
 
@@ -93,7 +101,7 @@ const BlogList: React.FC = () => {
         <div className="mb-12 flex flex-col md:flex-row justify-between items-center gap-6 bg-white/5 p-6 rounded-xl border border-white/10 backdrop-blur-sm">
           {/* Categories */}
           <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => handleCategoryChange(cat.id)}
