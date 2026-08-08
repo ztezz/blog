@@ -1,16 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import automation from './automation.js';
 
-const { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, parseDuckDuckGoResults, parseFeed, readingTime } = automation;
+const { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime } = automation;
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe('content automation helpers', () => {
   it('parses RSS and Atom links', () => {
-    const rss = `<?xml version="1.0"?><rss><channel><item><title>Mars map</title><link>/mars</link><pubDate>2026-08-07</pubDate><description>New mapping data</description></item></channel></rss>`;
+    const rss = `<?xml version="1.0"?><rss><channel><item><title>Mars map</title><link>/mars</link><pubDate>2026-08-07</pubDate><description>New mapping data</description><enclosure url="/images/mars.jpg" type="image/jpeg" /></item></channel></rss>`;
     expect(parseFeed(rss, 'https://example.com/feed.xml')[0]).toMatchObject({
       url: 'https://example.com/mars',
-      title: 'Mars map'
+      title: 'Mars map',
+      imageUrl: 'https://example.com/images/mars.jpg'
     });
   });
 
@@ -25,10 +26,17 @@ describe('content automation helpers', () => {
   });
 
   it('extracts article text and removes executable elements', () => {
-    const article = extractArticle('<article><h1>Title</h1><script>alert(1)</script><p>This is a sufficiently detailed paragraph about satellite mapping.</p></article>', 'https://example.com/post');
+    const article = extractArticle('<meta property="og:image" content="/images/satellite-map.webp"><article><h1>Title</h1><script>alert(1)</script><p>This is a sufficiently detailed paragraph about satellite mapping.</p></article>', 'https://example.com/post');
     expect(article.title).toBe('Title');
     expect(article.content).toContain('satellite mapping');
     expect(article.content).not.toContain('alert');
+    expect(article.imageUrl).toBe('https://example.com/images/satellite-map.webp');
+  });
+
+  it('filters decorative images and falls back to a relevant article image', () => {
+    const article = extractArticle('<meta property="og:image" content="/assets/site-logo.png"><article><img src="/images/mars-terrain.jpg" width="1200" height="630"><p>This is a sufficiently detailed paragraph about mapping the terrain of Mars.</p></article>', 'https://example.com/post');
+    expect(article.imageUrl).toBe('https://example.com/images/mars-terrain.jpg');
+    expect(normalizeImageUrl('javascript:alert(1)', 'https://example.com/post')).toBe('');
   });
 
   it('blocks private network addresses', () => {
@@ -106,7 +114,7 @@ describe('content automation helpers', () => {
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       if (String(url).endsWith('/robots.txt')) return new Response('User-agent: *\nAllow: /', { status: 200 });
-      return new Response(`<article><h1>Mars source</h1><p>${'Satellite mapping facts for Mars terrain. '.repeat(12)}</p></article>`, { status: 200 });
+      return new Response(`<meta property="og:image" content="https://93.184.216.34/images/mars-map.jpg"><article><h1>Mars source</h1><p>${'Satellite mapping facts for Mars terrain. '.repeat(12)}</p></article>`, { status: 200 });
     }));
 
     const service = createAutomation({
@@ -128,6 +136,7 @@ describe('content automation helpers', () => {
     expect(postInsert.params[3]).toContain('Nguồn tham khảo');
     expect(postInsert.params[3]).not.toContain('<script');
     expect(postInsert.params[4]).toBe('Database Author');
+    expect(postInsert.params[8]).toBe('https://93.184.216.34/images/mars-map.jpg');
     expect(fetch).toHaveBeenCalledWith('http://9router.test/v1/chat/completions', expect.anything());
     expect(queries.some(query => query.sql.includes("status='published'"))).toBe(true);
   });

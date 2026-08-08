@@ -18,6 +18,27 @@ const generatedPostSchema = z.object({
 });
 const asArray = value => value === undefined ? [] : Array.isArray(value) ? value : [value];
 const textValue = value => typeof value === 'string' ? value : value?.['#text'] || '';
+const normalizeImageUrl = (value, pageUrl) => {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  try {
+    const imageUrl = new URL(value.trim().split(/\s+/)[0], pageUrl);
+    if (!['http:', 'https:'].includes(imageUrl.protocol) || imageUrl.username || imageUrl.password) return '';
+    if (/\.(?:svg|ico)(?:$|[?#])/i.test(imageUrl.href) || /(?:^|[/_-])(?:logo|icon|avatar|author|profile|badge|sprite|pixel|tracking)(?:[/_.-]|$)/i.test(imageUrl.pathname)) return '';
+    return imageUrl.href;
+  } catch {
+    return '';
+  }
+};
+
+const feedImageUrl = (item, feedUrl) => {
+  const media = asArray(item['media:content'] || item['media:thumbnail'])[0];
+  const enclosure = asArray(item.enclosure).find(value => {
+    const type = value?.['@_type'] || '';
+    return type.startsWith('image/') || /\.(?:jpe?g|png|webp|avif)(?:$|[?#])/i.test(value?.['@_url'] || '');
+  });
+  const value = media?.['@_url'] || enclosure?.['@_url'] || '';
+  return normalizeImageUrl(value, feedUrl);
+};
 
 const parseFeed = (xml, feedUrl) => {
   const parsed = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' }).parse(xml);
@@ -31,7 +52,8 @@ const parseFeed = (xml, feedUrl) => {
       url: new URL(href, feedUrl).href,
       title: textValue(item.title).trim(),
       publishedAt: textValue(item.pubDate || item.published || item.updated),
-      summary: textValue(item.description || item.summary || item.content).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+      summary: textValue(item.description || item.summary || item.content).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+      imageUrl: feedImageUrl(item, feedUrl)
     };
   }).filter(Boolean);
 };
@@ -58,12 +80,27 @@ const extractArticleLinks = (html, websiteUrl) => {
 
 const extractArticle = (html, url, fallback = {}) => {
   const $ = cheerio.load(html);
+  const container = $('article').first().length ? $('article').first() : $('main').first().length ? $('main').first() : $('body');
+  const imageCandidates = [
+    $('meta[property="og:image:secure_url"]').attr('content'),
+    $('meta[property="og:image"]').attr('content'),
+    $('meta[name="twitter:image"]').attr('content'),
+    $('meta[property="twitter:image"]').attr('content'),
+    $('link[rel="image_src"]').attr('href')
+  ];
+  container.find('img').each((_, element) => {
+    const image = $(element);
+    const width = Number(image.attr('width') || 0);
+    const height = Number(image.attr('height') || 0);
+    if ((width && width < 300) || (height && height < 180)) return;
+    imageCandidates.push(image.attr('data-src') || image.attr('data-lazy-src') || image.attr('src') || image.attr('srcset')?.split(',')[0]);
+  });
+  const imageUrl = imageCandidates.map(value => normalizeImageUrl(value, url)).find(Boolean) || normalizeImageUrl(fallback.imageUrl, url);
   $('script, style, nav, footer, header, aside, form, noscript, svg').remove();
   const title = $('meta[property="og:title"]').attr('content') || $('h1').first().text() || $('title').text() || fallback.title || '';
-  const container = $('article').first().length ? $('article').first() : $('main').first().length ? $('main').first() : $('body');
   const paragraphs = container.find('p, h2, h3, li').map((_, element) => $(element).text().replace(/\s+/g, ' ').trim()).get().filter(text => text.length >= 20);
   const content = paragraphs.join('\n').slice(0, 30000) || fallback.summary || '';
-  return { url, title: title.replace(/\s+/g, ' ').trim(), content };
+  return { url, title: title.replace(/\s+/g, ' ').trim(), content, imageUrl };
 };
 
 const isPrivateIp = address => {
@@ -418,7 +455,7 @@ const createAutomation = ({ db, env = process.env }) => {
           await db.query(
             `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-            [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), config.defaultImageUrl, readingTime(content)]
+            [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), article.imageUrl || config.defaultImageUrl, readingTime(content)]
           );
           await db.query("UPDATE ai_generation_log SET status='published', post_id=$1, published_at=CURRENT_TIMESTAMP WHERE source_url=$2", [postId, candidate.url]);
           lastResult = { status: 'published', postId, sourceUrl: candidate.url, title: generated.title, completedAt: new Date().toISOString() };
@@ -482,4 +519,4 @@ const createAutomation = ({ db, env = process.env }) => {
   };
 };
 
-module.exports = { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, parseDuckDuckGoResults, parseFeed, readingTime };
+module.exports = { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime };

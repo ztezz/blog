@@ -20,6 +20,7 @@ const SettingsEditor: React.FC = () => {
   const [allowedDomainsText, setAllowedDomainsText] = useState('');
   const [blockedDomainsText, setBlockedDomainsText] = useState('');
   const [automationError, setAutomationError] = useState('');
+  const [automationSaveStatus, setAutomationSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionResult, setConnectionResult] = useState<{ type: 'success' | 'warning' | 'error', message: string } | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -256,6 +257,7 @@ const SettingsEditor: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setAutomationError('');
+    if (activeTab === 'automation') setAutomationSaveStatus(null);
     try {
       if (activeTab === 'automation' && automationSettings) {
         const saved = await saveAutomationSettings({
@@ -272,13 +274,17 @@ const SettingsEditor: React.FC = () => {
         setDiscoveryTopicsText(saved.discoveryTopics.join('\n'));
         setAllowedDomainsText(saved.allowedDomains.join('\n'));
         setBlockedDomainsText(saved.blockedDomains.join('\n'));
+        setAutomationSaveStatus({ type: 'success', message: 'Đã lưu thiết lập Tự động AI thành công.' });
       } else if (settings) {
       await saveSettings(settings);
       }
       setNotification({ type: 'success', message: 'Đã lưu cài đặt thành công!' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Không thể lưu cài đặt';
-      if (activeTab === 'automation') setAutomationError(message);
+      if (activeTab === 'automation') {
+        setAutomationError(message);
+        setAutomationSaveStatus({ type: 'error', message: `Không thể lưu thiết lập AI: ${message}` });
+      }
       else setNotification({ type: 'error', message });
     } finally {
       setLoading(false);
@@ -380,7 +386,7 @@ const SettingsEditor: React.FC = () => {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} onChange={() => activeTab === 'automation' && setAutomationSaveStatus(null)} className="space-y-8">
           
           {/* GENERAL TAB */}
           {activeTab === 'general' && (
@@ -580,6 +586,15 @@ const SettingsEditor: React.FC = () => {
                   <Sparkles className="mr-2" size={20} /> Tạo bài tự động bằng 9Router
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-gray-400 mb-6">Cấu hình được lưu trong SQLite. Để trống API key để giữ key đang lưu.</p>
+                {automationSaveStatus && (
+                  <div className={`mb-6 flex items-start gap-3 rounded-xl border p-4 text-sm ${automationSaveStatus.type === 'success' ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200' : 'border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200'}`} role={automationSaveStatus.type === 'error' ? 'alert' : 'status'} aria-live="polite">
+                    {automationSaveStatus.type === 'success' ? <CheckCircle2 className="mt-0.5 shrink-0" size={20} /> : <AlertCircle className="mt-0.5 shrink-0" size={20} />}
+                    <div>
+                      <p className="font-bold">{automationSaveStatus.type === 'success' ? 'Lưu thành công' : 'Lưu thất bại'}</p>
+                      <p className="mt-1 opacity-80">{automationSaveStatus.message}</p>
+                    </div>
+                  </div>
+                )}
                 {automationError && (
                   <div className="mb-6 whitespace-pre-wrap rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300" role="alert">
                     {automationError}
@@ -673,7 +688,8 @@ const SettingsEditor: React.FC = () => {
 
           <div className="flex justify-end pt-4">
             <button type="submit" disabled={loading} className="flex items-center px-8 py-4 bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950 font-bold rounded hover:bg-sky-600 dark:hover:bg-cyan-300 transition-colors disabled:opacity-50">
-              <Save size={20} className="mr-2" /> {loading ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+              {loading ? <LoaderCircle size={20} className="mr-2 animate-spin" /> : automationSaveStatus?.type === 'success' && activeTab === 'automation' ? <CheckCircle2 size={20} className="mr-2" /> : <Save size={20} className="mr-2" />}
+              {loading ? 'Đang lưu...' : automationSaveStatus?.type === 'success' && activeTab === 'automation' ? 'Đã lưu thiết lập AI' : 'Lưu Thay Đổi'}
             </button>
           </div>
         </form>
