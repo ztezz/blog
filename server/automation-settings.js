@@ -60,6 +60,8 @@ const serializeAutomationSettings = settings => ({
   defaultImageUrl: settings.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400',
   approvalMode: settings.approval_mode === 'quality_gate' ? 'quality_gate' : 'required',
   qualityThreshold: Number(settings.quality_threshold ?? 80)
+  ,fallbackModels: parseJsonArray(settings.fallback_models, true)
+  ,retryCount: Number(settings.retry_count ?? 1)
 });
 
 module.exports = { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings, splitList };

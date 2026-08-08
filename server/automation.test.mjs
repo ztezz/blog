@@ -108,7 +108,9 @@ describe('content automation helpers', () => {
             blocked_domains: '[]',
             run_hour_utc: 1,
             author: 'Database Author',
-            default_image_url: 'https://example.com/image.jpg'
+            default_image_url: 'https://example.com/image.jpg',
+            fallback_models: '["backup-model"]',
+            retry_count: 0
           }]
         };
         if (sql.includes('INSERT INTO ai_generation_log')) return { rowCount: 1, rows: [] };
@@ -124,7 +126,8 @@ describe('content automation helpers', () => {
       }
       if (String(url).endsWith('/chat/completions')) {
         const request = JSON.parse(options.body || '{}');
-        expect(request.model).toBe('database-model');
+        if (request.model === 'database-model') return new Response('temporary failure', { status: 500 });
+        expect(request.model).toBe('backup-model');
         if (request.temperature === 0) {
           return new Response(JSON.stringify({
             choices: [{ message: { content: JSON.stringify({
@@ -168,6 +171,8 @@ describe('content automation helpers', () => {
 
     expect(result.status).toBe('draft');
     expect(result.qualityScore).toBeGreaterThan(0);
+    expect(result.model).toBe('backup-model');
+    expect(result.attempts).toBe(4);
     const status = await service.status();
     expect(status.running).toBe(false);
     expect(status.progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 1, processedCandidates: 1 });
@@ -183,6 +188,7 @@ describe('content automation helpers', () => {
     const qualityReport = JSON.parse(postInsert.params[12]);
     expect(qualityReport.hardFailures).toEqual([]);
     expect(qualityReport.verification).toMatchObject({ supported: 1, partial: 0, unsupported: 0 });
+    expect(qualityReport.gateway).toMatchObject({ writerModel: 'backup-model', writerAttempts: 2, factCheckModel: 'backup-model', factCheckAttempts: 2 });
     expect(postInsert.params[15]).toBe('Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới');
     expect(postInsert.params[17]).toBe('["bản đồ Sao Hỏa","dữ liệu vệ tinh"]');
     expect(await fs.readdir(uploadDir)).toHaveLength(2);

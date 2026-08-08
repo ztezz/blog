@@ -62,7 +62,9 @@ const schemas = {
     author: z.string().trim().min(1).max(100),
     defaultImageUrl: optionalMediaUrl,
     approvalMode: z.enum(['required', 'quality_gate']).optional().default('required'),
-    qualityThreshold: z.number().int().min(50).max(100).optional().default(80)
+    qualityThreshold: z.number().int().min(50).max(100).optional().default(80),
+    fallbackModels: z.array(z.string().trim().min(1).max(200)).max(5).optional().default([]),
+    retryCount: z.number().int().min(0).max(3).optional().default(1)
   }).superRefine((value, context) => {
     if (value.enabled && !value.model) context.addIssue({ code: 'custom', message: 'Model is required when automation is enabled', path: ['model'] });
     if (value.enabled && value.rssFeeds.length + value.websites.length === 0 && !value.discoveryEnabled) context.addIssue({ code: 'custom', message: 'At least one RSS feed, website or topic discovery must be enabled', path: ['rssFeeds'] });

@@ -333,7 +333,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     author: env.AI_AUTHOR || 'CosmoGIS AI',
     defaultImageUrl: env.AI_DEFAULT_IMAGE_URL || 'https://picsum.photos/seed/cosmogis-ai/800/400',
     approvalMode: 'required',
-    qualityThreshold: 80
+    qualityThreshold: 80,
+    fallbackModels: [],
+    retryCount: 1
   };
 
   const loadConfig = async () => {
@@ -359,7 +361,9 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
       author: row.author || 'CosmoGIS AI',
       defaultImageUrl: row.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400',
       approvalMode: row.approval_mode === 'quality_gate' ? 'quality_gate' : 'required',
-      qualityThreshold: Number(row.quality_threshold ?? 80)
+      qualityThreshold: Number(row.quality_threshold ?? 80),
+      fallbackModels: parseJsonArray(row.fallback_models, true),
+      retryCount: Number(row.retry_count ?? 1)
     };
   };
 
@@ -451,10 +455,65 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     return result.rowCount > 0;
   };
 
+  const waitForRetry = (milliseconds, signal) => new Promise((resolve, reject) => {
+    throwIfCancelled(signal);
+    const timeout = setTimeout(resolve, milliseconds);
+    timeout.unref?.();
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timeout);
+      reject(cancellationError());
+    }, { once: true });
+  });
+
+  const parseGatewayPayload = async response => {
+    const text = await response.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      const jsonLine = text.split('\n').find(line => line.startsWith('data: '));
+      if (jsonLine) return JSON.parse(jsonLine.replace(/^data:\s*/, '').trim());
+      throw Object.assign(new Error(`Invalid JSON response from AI gateway: ${text.slice(0, 100)}`), { retryable: true });
+    }
+  };
+
+  const callGateway = async (config, request, parseContent, signal) => {
+    const models = [...new Set([config.model, ...config.fallbackModels].filter(Boolean))];
+    let attempts = 0;
+    let lastError;
+    for (const model of models) {
+      for (let retry = 0; retry <= config.retryCount; retry += 1) {
+        attempts += 1;
+        throwIfCancelled(signal);
+        try {
+          const send = body => fetch(`${config.baseUrl}/chat/completions`, {
+            method: 'POST',
+            signal: requestSignal(signal, 120000),
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}) },
+            body: JSON.stringify({ ...body, model, stream: false })
+          });
+          let response = await send({ ...request, response_format: { type: 'json_object' } });
+          if (response.status === 400) response = await send(request);
+          if (!response.ok) throw Object.assign(new Error(`AI gateway returned HTTP ${response.status}`), { retryable: response.status === 429 || response.status >= 500 });
+          const payload = await parseGatewayPayload(response);
+          const content = payload?.choices?.[0]?.message?.content;
+          if (typeof content !== 'string') throw Object.assign(new Error('AI gateway returned an invalid response'), { retryable: true });
+          return { value: parseContent(content), model, attempts };
+        } catch (error) {
+          if (isCancellation(error) || signal?.aborted) throw cancellationError();
+          const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError';
+          const retryable = timedOut || error?.retryable || error?.name === 'ZodError' || error instanceof SyntaxError;
+          lastError = error;
+          if (!retryable) throw error;
+          if (retry < config.retryCount) await waitForRetry(250 * (2 ** retry), signal);
+        }
+      }
+    }
+    throw lastError || new Error('All 9Router models failed');
+  };
+
   const callAi = async (config, articles, categories, signal) => {
     const evidence = articles.map((article, index) => `[S${index + 1}] ${article.title}\nURL: ${article.url}\nDữ kiện:\n${article.content}`).join('\n\n---\n\n');
     const request = {
-      model: config.model,
       temperature: 0.4,
       messages: [
         {
@@ -467,34 +526,8 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         }
       ]
     };
-    const send = body => fetch(`${config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      signal: requestSignal(signal, 120000),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
-      },
-      body: JSON.stringify({ ...body, stream: false })
-    });
-    let response = await send({ ...request, response_format: { type: 'json_object' } });
-    if (response.status === 400) response = await send(request);
-    if (!response.ok) throw new Error(`AI gateway returned HTTP ${response.status}`);
-    const text = await response.text();
-    let payload;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      const jsonLine = text.split('\n').find(line => line.startsWith('data: '));
-      if (jsonLine) {
-        payload = JSON.parse(jsonLine.replace(/^data:\s*/, '').trim());
-      } else {
-        throw new Error(`Invalid JSON response from AI gateway: ${text.slice(0, 100)}`);
-      }
-    }
-    const content = payload?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string') throw new Error('AI gateway returned an invalid response');
-    return generatedPostSchema.parse(JSON.parse(cleanJsonText(content)));
+    const result = await callGateway(config, request, content => generatedPostSchema.parse(JSON.parse(cleanJsonText(content))), signal);
+    return { ...result.value, gatewayModel: result.model, gatewayAttempts: result.attempts };
   };
 
   const factCheck = async (config, generated, articles, signal) => {
@@ -507,30 +540,14 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     }
 
     const evidence = articles.map((article, index) => `[S${index + 1}] ${article.title}\n${article.content}`).join('\n\n---\n\n');
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      signal: requestSignal(signal, 120000),
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {})
-      },
-      body: JSON.stringify({
-        model: config.model,
-        temperature: 0,
-        stream: false,
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: 'Bạn là người kiểm chứng độc lập. Chỉ đối chiếu từng claim với bằng chứng được cung cấp. Không suy diễn kiến thức bên ngoài. Trả JSON thuần {assessments:[{claimIndex,status:"supported|partial|unsupported",sourceIds:[],note:""}]}.' },
-          { role: 'user', content: `Claims:\n${JSON.stringify(generated.claims)}\n\nBằng chứng:\n${evidence}` }
-        ]
-      })
-    });
-    if (!response.ok) throw new Error(`Fact-check gateway returned HTTP ${response.status}`);
-    const payload = await response.json();
-    const reviewContent = payload?.choices?.[0]?.message?.content;
-    if (typeof reviewContent !== 'string') throw new Error('Fact-check gateway returned an invalid response');
-    const parsed = factCheckSchema.parse(JSON.parse(cleanJsonText(reviewContent)));
+    const gatewayResult = await callGateway(config, {
+      temperature: 0,
+      messages: [
+        { role: 'system', content: 'Bạn là người kiểm chứng độc lập. Chỉ đối chiếu từng claim với bằng chứng được cung cấp. Không suy diễn kiến thức bên ngoài. Trả JSON thuần {assessments:[{claimIndex,status:"supported|partial|unsupported",sourceIds:[],note:""}]}.' },
+        { role: 'user', content: `Claims:\n${JSON.stringify(generated.claims)}\n\nBằng chứng:\n${evidence}` }
+      ]
+    }, content => factCheckSchema.parse(JSON.parse(cleanJsonText(content))), signal);
+    const parsed = gatewayResult.value;
     const assessments = generated.claims.map((claim, claimIndex) => {
       const assessment = parsed.assessments.find(item => item.claimIndex === claimIndex);
       if (!assessment) return { claimIndex, text: claim.text, status: 'unsupported', sourceIds: [], note: 'Không có kết quả kiểm chứng' };
@@ -543,7 +560,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     const hardFailures = [];
     if (invalidCitations.length > 0) hardFailures.push(`${invalidCitations.length} trích dẫn dùng mã nguồn không tồn tại`);
     if (unsupported > 0) hardFailures.push(`${unsupported} dữ kiện không được nguồn hỗ trợ`);
-    return { supported, partial, unsupported, invalidCitations, assessments, hardFailures };
+    return { supported, partial, unsupported, invalidCitations, assessments, hardFailures, model: gatewayResult.model, attempts: gatewayResult.attempts };
   };
 
   const persistArticleImages = async (article, signal) => {
@@ -586,7 +603,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     if (verification.partial > 0) warnings.push(`${verification.partial} dữ kiện chỉ được hỗ trợ một phần`);
     warnings.push(...verification.hardFailures);
     const verificationPenalty = verification.unsupported * 15 + verification.partial * 5 + verification.invalidCitations.length * 10;
-    return { score: Math.max(0, Math.min(score - verificationPenalty, 100)), sourceCount: sourceUrls.length, checks, warnings, hardFailures: verification.hardFailures, verification };
+    return { score: Math.max(0, Math.min(score - verificationPenalty, 100)), sourceCount: sourceUrls.length, checks, warnings, hardFailures: verification.hardFailures, verification, gateway: { writerModel: generated.gatewayModel, writerAttempts: generated.gatewayAttempts, factCheckModel: verification.model || null, factCheckAttempts: verification.attempts || 0 } };
   };
 
   const run = async () => {
@@ -656,7 +673,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           const categories = categoryRows.rows;
           updateProgress('writing', `Đã đọc ${articles.length} nguồn. 9Router đang đối chiếu và biên tập...`, 70, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
           const generated = await callAi(config, articles, categories, signal);
-          updateProgress('verifying', `Đang kiểm chứng ${generated.claims.length} dữ kiện với ${articles.length} nguồn...`, 82, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length });
+          updateProgress('verifying', `Model ${generated.gatewayModel} đã viết sau ${generated.gatewayAttempts} lượt. Đang kiểm chứng ${generated.claims.length} dữ kiện...`, 82, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1, sourceCount: articles.length, model: generated.gatewayModel, attempts: generated.gatewayAttempts });
           let verification;
           try {
             verification = await factCheck(config, generated, articles, signal);
@@ -689,7 +706,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
           for (const sourceUrl of sourceUrls) {
             await db.query("UPDATE ai_generation_log SET status=$1, post_id=$2, published_at=CASE WHEN $1='published' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE source_url=$3", [postStatus, postId, sourceUrl]);
           }
-          lastResult = { status: postStatus, postId, sourceUrl: candidate.url, sourceCount: sourceUrls.length, title: generated.title, qualityScore: quality.score, completedAt: new Date().toISOString() };
+          lastResult = { status: postStatus, postId, sourceUrl: candidate.url, sourceCount: sourceUrls.length, title: generated.title, qualityScore: quality.score, model: generated.gatewayModel, attempts: generated.gatewayAttempts + (verification.attempts || 0), completedAt: new Date().toISOString() };
           updateProgress('completed', postStatus === 'published' ? 'Đã đăng bài viết thành công.' : `Đã lưu bản nháp với điểm chất lượng ${quality.score}/100.`, 100, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           return lastResult;
         } catch (error) {

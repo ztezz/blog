@@ -65,6 +65,9 @@ describe('API request schemas', () => {
       defaultImageUrl: 'https://example.com/image.jpg'
     });
     expect(result.model).toBe('writing-combo');
+    expect(result.fallbackModels).toEqual([]);
+    expect(result.retryCount).toBe(1);
+    expect(schemas.automationSettings.safeParse({ ...result, fallbackModels: Array(6).fill('model') }).success).toBe(false);
     expect(schemas.automationSettings.safeParse({ ...result, discoveryEnabled: false, rssFeeds: [], websites: [] }).success).toBe(false);
     expect(schemas.automationSettings.safeParse({ ...result, rssFeeds: [], websites: [] }).success).toBe(true);
     expect(schemas.automationSettings.safeParse({ ...result, enabled: false, model: '', rssFeeds: [], websites: [] }).success).toBe(true);

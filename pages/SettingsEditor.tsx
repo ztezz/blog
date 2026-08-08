@@ -19,6 +19,7 @@ const SettingsEditor: React.FC = () => {
   const [discoveryTopicsText, setDiscoveryTopicsText] = useState('');
   const [allowedDomainsText, setAllowedDomainsText] = useState('');
   const [blockedDomainsText, setBlockedDomainsText] = useState('');
+  const [fallbackModelsText, setFallbackModelsText] = useState('');
   const [automationError, setAutomationError] = useState('');
   const [automationSaveStatus, setAutomationSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -52,6 +53,7 @@ const SettingsEditor: React.FC = () => {
       setDiscoveryTopicsText(loadedSettings.discoveryTopics.join('\n'));
       setAllowedDomainsText(loadedSettings.allowedDomains.join('\n'));
       setBlockedDomainsText(loadedSettings.blockedDomains.join('\n'));
+      setFallbackModelsText(loadedSettings.fallbackModels.join('\n'));
     }).catch(error => console.error('Failed to load AI settings:', error));
   }, [navigate]);
 
@@ -267,6 +269,7 @@ const SettingsEditor: React.FC = () => {
           discoveryTopics: discoveryTopicsText.split(/\r?\n/).map(value => value.trim()).filter(Boolean),
           allowedDomains: allowedDomainsText.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean),
           blockedDomains: blockedDomainsText.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean)
+          ,fallbackModels: fallbackModelsText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean)
         });
         setAutomationSettings(saved);
         setRssFeedsText(saved.rssFeeds.join('\n'));
@@ -274,6 +277,7 @@ const SettingsEditor: React.FC = () => {
         setDiscoveryTopicsText(saved.discoveryTopics.join('\n'));
         setAllowedDomainsText(saved.allowedDomains.join('\n'));
         setBlockedDomainsText(saved.blockedDomains.join('\n'));
+        setFallbackModelsText(saved.fallbackModels.join('\n'));
         setAutomationSaveStatus({ type: 'success', message: 'Đã lưu thiết lập Tự động AI thành công.' });
       } else if (settings) {
       await saveSettings(settings);
@@ -629,6 +633,15 @@ const SettingsEditor: React.FC = () => {
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Model hoặc Combo</label>
                     <input type="text" value={automationSettings.model} onChange={event => setAutomationSettings({ ...automationSettings, model: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required={automationSettings.enabled} />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Số lần thử lại mỗi model (0-3)</label>
+                    <input type="number" min="0" max="3" value={automationSettings.retryCount} onChange={event => setAutomationSettings({ ...automationSettings, retryCount: Number(event.target.value) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Model dự phòng, mỗi dòng một model theo thứ tự ưu tiên</label>
+                    <textarea rows={3} value={fallbackModelsText} onChange={event => setFallbackModelsText(event.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" placeholder={'fallback-combo-1\nfallback-model-2'} />
+                    <p className="mt-1 text-xs text-slate-500">Chỉ chuyển model khi timeout, rate limit, lỗi máy chủ hoặc phản hồi không hợp lệ.</p>
                   </div>
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Giờ chạy UTC (0-23)</label>

@@ -27,6 +27,7 @@ export interface BlogPost {
       unsupported: number;
       assessments?: Array<{ claimIndex: number; text: string; status: 'supported' | 'partial' | 'unsupported'; sourceIds: string[]; note: string }>;
     };
+    gateway?: { writerModel?: string; writerAttempts?: number; factCheckModel?: string | null; factCheckAttempts?: number };
   } | null;
   sourceUrl?: string;
   sourceUrls?: string[];
@@ -86,6 +87,8 @@ export interface AutomationSettings {
   defaultImageUrl: string;
   approvalMode: 'required' | 'quality_gate';
   qualityThreshold: number;
+  fallbackModels: string[];
+  retryCount: number;
 }
 
 export interface AutomationConnectionResult {
@@ -105,6 +108,8 @@ export interface AutomationRunResult {
   reason?: string;
   error?: string;
   diagnostics?: AutomationDiagnostics;
+  model?: string;
+  attempts?: number;
 }
 
 export interface AutomationDiagnostics {

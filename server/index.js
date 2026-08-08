@@ -332,6 +332,8 @@ const initDb = async () => {
       ['default_image_url', "TEXT NOT NULL DEFAULT 'https://picsum.photos/seed/cosmogis-ai/800/400'"],
       ['approval_mode', "TEXT NOT NULL DEFAULT 'required'"],
       ['quality_threshold', 'INTEGER NOT NULL DEFAULT 80'],
+      ['fallback_models', "TEXT NOT NULL DEFAULT '[]'"],
+      ['retry_count', 'INTEGER NOT NULL DEFAULT 1'],
       ['updated_at', 'TIMESTAMP']
     ];
     for (const [column, definition] of settingsMigrations) {
@@ -490,9 +492,10 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
        model=$5, rss_feeds=$6, website_urls=$7,
        discovery_enabled=$8, discovery_provider=$9, discovery_model=$10, discovery_topics=$11,
        allowed_domains=$12, blocked_domains=$13, run_hour_utc=$14,
-       author=$15, default_image_url=$16, approval_mode=$17, quality_threshold=$18, updated_at=CURRENT_TIMESTAMP
+       author=$15, default_image_url=$16, approval_mode=$17, quality_threshold=$18,
+       fallback_models=$19, retry_count=$20, updated_at=CURRENT_TIMESTAMP
        WHERE id=1`,
-      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold]
+      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount]
     );
     await automation.reschedule();
     const saved = await ensureAutomationSettings(db);
