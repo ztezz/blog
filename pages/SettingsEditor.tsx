@@ -6,13 +6,22 @@ import { getAutomationSettings, getSettings, saveAutomationSettings, saveSetting
 import { AutomationSettings, SiteSettings, NavItem } from '../types';
 import { DEFAULT_ABOUT_CONTENT, DEFAULT_CONTACT_CONTENT } from '../constants';
 
+type SettingsTab = 'general' | 'menu' | 'pages' | 'automation';
+
+const settingsTabs = [
+  { id: 'general', label: 'Nhận diện website', description: 'Logo, tên hiển thị và footer', icon: Globe },
+  { id: 'menu', label: 'Điều hướng', description: 'Cấu trúc menu và liên kết', icon: Layout },
+  { id: 'pages', label: 'Nội dung tĩnh', description: 'Trang giới thiệu và liên hệ', icon: FileText },
+  { id: 'automation', label: 'Tự động AI', description: 'Nguồn, model và chính sách', icon: Sparkles }
+] as const;
+
 const SettingsEditor: React.FC = () => {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
-  const [activeTab, setActiveTab] = useState<'general' | 'menu' | 'pages' | 'automation'>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings | null>(null);
   const [rssFeedsText, setRssFeedsText] = useState('');
   const [websitesText, setWebsitesText] = useState('');
@@ -326,10 +335,21 @@ const SettingsEditor: React.FC = () => {
     }
   };
 
-  if (!settings) return null;
+  if (!settings) return (
+    <div className="min-h-screen px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl animate-pulse">
+        <div className="h-32 rounded-3xl bg-slate-200 dark:bg-white/5" />
+        <div className="mt-8 grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)]"><div className="h-96 rounded-2xl bg-slate-200 dark:bg-white/5" /><div className="h-[620px] rounded-2xl bg-slate-200 dark:bg-white/5" /></div>
+      </div>
+    </div>
+  );
+
+  const activeTabDetails = settingsTabs.find(tab => tab.id === activeTab) || settingsTabs[0];
+  const ActiveTabIcon = activeTabDetails.icon;
+  const navigationItemCount = settings.navigation.reduce((count, item) => count + 1 + (item.children?.length || 0), 0);
 
   return (
-    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
       {notification && (
         <div className={`fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-xl backdrop-blur sm:right-6 sm:top-6 ${notification.type === 'success' ? 'border-emerald-300 bg-emerald-50/95 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/95 dark:text-emerald-200' : 'border-red-300 bg-red-50/95 text-red-800 dark:border-red-500/40 dark:bg-red-950/95 dark:text-red-200'}`} role="status" aria-live="polite">
           {notification.type === 'success' ? <CheckCircle2 className="mt-0.5 shrink-0" size={20} /> : <AlertCircle className="mt-0.5 shrink-0" size={20} />}
@@ -360,45 +380,35 @@ const SettingsEditor: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center">
-            <button onClick={() => navigate('/admin/dashboard')} className="text-gray-400 hover:text-sky-600 dark:hover:text-white mr-4 transition-colors">
-              <ArrowLeft size={24} />
-            </button>
-            <h1 className="text-3xl font-display font-bold text-slate-900 dark:text-white">Cài Đặt Website</h1>
+      <div className="mx-auto max-w-7xl">
+        <header className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 px-6 py-8 text-white shadow-2xl shadow-slate-900/10 dark:border-white/10 sm:px-8">
+          <div className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full border border-cyan-300/20" />
+          <div className="pointer-events-none absolute -right-4 -top-16 h-48 w-48 rounded-full border border-purple-300/20" />
+          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <button onClick={() => navigate('/admin/dashboard')} className="mt-1 rounded-xl border border-white/15 bg-white/5 p-2.5 text-slate-300 transition hover:border-cyan-300/40 hover:bg-white/10 hover:text-white" aria-label="Trở lại bảng điều khiển"><ArrowLeft size={20} /></button>
+              <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">Control center</p><h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">Cài đặt website</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Quản lý nhận diện, nội dung, điều hướng và dây chuyền xuất bản AI tại một nơi.</p></div>
+            </div>
+            <div className="relative flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur"><span className={`h-2.5 w-2.5 rounded-full ${automationSettings?.enabled ? 'bg-emerald-300 shadow-[0_0_12px_#6ee7b7]' : 'bg-slate-500'}`} /><div><p className="text-xs text-slate-400">Tự động AI</p><p className="text-sm font-bold">{automationSettings?.enabled ? 'Đang bật lịch' : 'Đang tắt lịch'}</p></div></div>
           </div>
-        </div>
+        </header>
 
-        {/* TAB NAVIGATION */}
-        <div className="flex border-b border-slate-200 dark:border-white/10 mb-8 space-x-6">
-          <button 
-            onClick={() => setActiveTab('general')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'general' ? 'border-sky-500 dark:border-cyan-400 text-sky-600 dark:text-cyan-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
-          >
-            Chung & Footer
-          </button>
-          <button 
-            onClick={() => setActiveTab('menu')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'menu' ? 'border-sky-500 dark:border-cyan-400 text-sky-600 dark:text-cyan-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
-          >
-            Menu Điều Hướng
-          </button>
-          <button 
-            onClick={() => setActiveTab('pages')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'pages' ? 'border-sky-500 dark:border-cyan-400 text-sky-600 dark:text-cyan-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-sky-600 dark:hover:text-white'}`}
-          >
-            Nội dung Trang
-          </button>
-          <button
-            onClick={() => setActiveTab('automation')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'automation' ? 'border-purple-500 text-purple-600 dark:text-purple-400' : 'border-transparent text-slate-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-white'}`}
-          >
-            Tự động AI
-          </button>
-        </div>
+        <div className="grid items-start gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="lg:sticky lg:top-28">
+            <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-3 lg:mx-0 lg:block lg:space-y-2 lg:overflow-visible lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white/80 lg:p-3 lg:shadow-lg lg:backdrop-blur dark:lg:border-white/10 dark:lg:bg-slate-900/70" aria-label="Nhóm cài đặt">
+              {settingsTabs.map(({ id, label, description, icon: Icon }) => (
+                <button key={id} type="button" onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined} className={`group flex min-w-[210px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition lg:w-full lg:min-w-0 ${activeTab === id ? id === 'automation' ? 'border-purple-300 bg-purple-50 text-purple-800 shadow-sm dark:border-purple-400/30 dark:bg-purple-400/10 dark:text-purple-200' : 'border-sky-300 bg-sky-50 text-sky-800 shadow-sm dark:border-cyan-400/30 dark:bg-cyan-400/10 dark:text-cyan-200' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:bg-white/5 lg:border-transparent lg:bg-transparent dark:lg:bg-transparent'}`}>
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${activeTab === id ? id === 'automation' ? 'bg-purple-600 text-white dark:bg-purple-400 dark:text-slate-950' : 'bg-sky-600 text-white dark:bg-cyan-300 dark:text-slate-950' : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400'}`}><Icon size={18} /></span>
+                  <span className="min-w-0"><span className="block text-sm font-bold">{label}</span><span className="mt-0.5 hidden text-xs leading-4 opacity-70 lg:block">{description}</span></span>
+                </button>
+              ))}
+            </nav>
+            <div className="mt-4 hidden rounded-2xl border border-slate-200 bg-white/70 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.035] lg:block"><p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Tổng quan</p><dl className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between"><dt className="text-slate-500 dark:text-slate-400">Menu</dt><dd className="font-bold text-slate-900 dark:text-white">{navigationItemCount} liên kết</dd></div><div className="flex items-center justify-between"><dt className="text-slate-500 dark:text-slate-400">Logo</dt><dd className={`font-bold ${settings.logoUrl ? 'text-emerald-600' : 'text-amber-600'}`}>{settings.logoUrl ? 'Đã đặt' : 'Mặc định'}</dd></div><div className="flex items-center justify-between"><dt className="text-slate-500 dark:text-slate-400">API key AI</dt><dd className={`font-bold ${automationSettings?.hasApiKey ? 'text-emerald-600' : 'text-slate-500'}`}>{automationSettings?.hasApiKey ? 'Đã bảo mật' : 'Chưa đặt'}</dd></div></dl></div>
+          </aside>
 
-        <form onSubmit={handleSubmit} onChange={() => activeTab === 'automation' && setAutomationSaveStatus(null)} className="space-y-8">
+          <main className="min-w-0">
+            <div className="mb-6 flex items-start gap-3"><div className={`mt-0.5 rounded-xl p-2.5 ${activeTab === 'automation' ? 'bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-300' : 'bg-sky-100 text-sky-700 dark:bg-cyan-400/10 dark:text-cyan-300'}`}><ActiveTabIcon size={21} /></div><div><h2 className="font-display text-2xl font-bold text-slate-950 dark:text-white">{activeTabDetails.label}</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{activeTabDetails.description}</p></div></div>
+            <form onSubmit={handleSubmit} onChange={() => activeTab === 'automation' && setAutomationSaveStatus(null)} className="space-y-8">
           
           {/* GENERAL TAB */}
           {activeTab === 'general' && (
@@ -443,7 +453,7 @@ const SettingsEditor: React.FC = () => {
                 {/* NEW: Page Title Input */}
                 <div className="mb-6">
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Tiêu đề trang (Browser Tab Title)</label>
-                    <input type="text" name="pageTitle" value={settings.pageTitle || ''} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none" placeholder="VD: CosmoGIS - Bản Đồ Vũ Trụ" />
+                    <input type="text" name="pageTitle" value={settings.pageTitle || ''} onChange={handleChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:border-sky-500 dark:focus:border-cyan-400 outline-none" placeholder={`VD: ${settings.siteNamePrefix}${settings.siteNameSuffix} - Bản Đồ Vũ Trụ`} />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -563,7 +573,7 @@ const SettingsEditor: React.FC = () => {
                  <h3 className="text-xl font-bold text-sky-600 dark:text-cyan-400 mb-6 flex items-center">
                    <FileText className="mr-2" size={20} /> Nội dung trang Giới Thiệu (About)
                  </h3>
-                 <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">Hỗ trợ mã HTML (thẻ p, h3, b, i, ul, li...)</p>
+                  <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">Hỗ trợ mã HTML (thẻ p, h3, b, i, ul, li...). Dùng <code className="rounded bg-slate-100 px-1.5 py-0.5 dark:bg-white/10">{'{{siteName}}'}</code> để chèn tên website từ cài đặt.</p>
                  <textarea
                    name="aboutContent"
                    value={settings.aboutContent || ''}
@@ -749,13 +759,23 @@ const SettingsEditor: React.FC = () => {
             </div>
           )}
 
-          <div className="flex justify-end pt-4">
-            <button type="submit" disabled={loading} className="flex items-center px-8 py-4 bg-sky-500 dark:bg-cyan-400 text-white dark:text-slate-950 font-bold rounded hover:bg-sky-600 dark:hover:bg-cyan-300 transition-colors disabled:opacity-50">
+          {activeTab === 'automation' && !automationSettings && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-lg dark:border-white/10 dark:bg-slate-800" aria-live="polite">
+              <div className="flex items-center gap-3 text-purple-700 dark:text-purple-300"><LoaderCircle className="animate-spin" size={22} /><p className="font-bold">Đang tải cấu hình tự động AI...</p></div>
+              <div className="mt-6 grid animate-pulse gap-4 sm:grid-cols-2"><div className="h-14 rounded-xl bg-slate-100 dark:bg-white/5" /><div className="h-14 rounded-xl bg-slate-100 dark:bg-white/5" /><div className="h-32 rounded-xl bg-slate-100 dark:bg-white/5 sm:col-span-2" /></div>
+            </div>
+          )}
+
+          <div className="sticky bottom-4 z-20 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-2xl shadow-slate-900/10 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+            <div className="hidden sm:block"><p className="text-sm font-bold text-slate-900 dark:text-white">{activeTabDetails.label}</p><p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Các thay đổi chỉ có hiệu lực sau khi lưu.</p></div>
+            <button type="submit" disabled={loading || (activeTab === 'automation' && !automationSettings)} className={`flex items-center justify-center rounded-xl px-6 py-3 font-bold text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${activeTab === 'automation' ? 'bg-purple-600 shadow-purple-600/20 hover:bg-purple-700' : 'bg-sky-600 shadow-sky-600/20 hover:bg-sky-700 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200'}`}>
               {loading ? <LoaderCircle size={20} className="mr-2 animate-spin" /> : automationSaveStatus?.type === 'success' && activeTab === 'automation' ? <CheckCircle2 size={20} className="mr-2" /> : <Save size={20} className="mr-2" />}
               {loading ? 'Đang lưu...' : automationSaveStatus?.type === 'success' && activeTab === 'automation' ? 'Đã lưu thiết lập AI' : 'Lưu Thay Đổi'}
             </button>
           </div>
-        </form>
+            </form>
+          </main>
+        </div>
       </div>
     </div>
   );

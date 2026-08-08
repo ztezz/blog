@@ -117,7 +117,7 @@ export const BLOG_POSTS: BlogPost[] = [
 export const DEFAULT_ABOUT_CONTENT = `
 <div class="text-center mb-16">
   <h1 class="text-4xl md:text-6xl font-display font-bold mb-6">
-    Về <span class="text-sky-600 dark:text-space-neon">CosmoGIS</span>
+    Về <span class="text-sky-600 dark:text-space-neon">{{siteName}}</span>
   </h1>
   <p class="text-xl max-w-3xl mx-auto leading-relaxed">
     Chúng tôi là những nhà khoa học dữ liệu, kỹ sư bản đồ và những người yêu thiên văn, cùng nhau xây dựng cầu nối giữa Trái Đất và Vũ Trụ thông qua ngôn ngữ của bản đồ.
@@ -131,7 +131,7 @@ export const DEFAULT_ABOUT_CONTENT = `
       Vũ trụ quá rộng lớn để có thể hiểu hết chỉ bằng quan sát thông thường. Chúng tôi tin rằng <strong>Spatial Data (Dữ liệu không gian)</strong> chính là chìa khóa.
     </p>
     <p class="leading-relaxed">
-      Sứ mệnh của CosmoGIS là phổ cập kiến thức về GIS trong thiên văn học, cung cấp cái nhìn sâu sắc về cách các tàu vũ trụ định vị, cách chúng ta vẽ bản đồ Sao Hỏa, và cách công nghệ viễn thám bảo vệ Trái Đất.
+      Sứ mệnh của {{siteName}} là phổ cập kiến thức về GIS trong thiên văn học, cung cấp cái nhìn sâu sắc về cách các tàu vũ trụ định vị, cách chúng ta vẽ bản đồ Sao Hỏa, và cách công nghệ viễn thám bảo vệ Trái Đất.
     </p>
   </div>
   <div class="order-1 md:order-2 bg-gradient-to-br from-sky-500/20 to-purple-500/20 dark:from-space-neon/20 dark:to-space-purple/20 p-1 rounded-2xl">

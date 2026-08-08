@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { getPosts } from '../utils/storage';
 import { BlogPost } from '../types';
+import { useSiteSettings } from '../components/Layout';
 
 const topics = [
   {
@@ -61,6 +62,7 @@ const formatDate = (date: string) => {
 };
 
 const Home: React.FC = () => {
+  const settings = useSiteSettings();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -81,6 +83,7 @@ const Home: React.FC = () => {
   const featuredPosts = posts.slice(0, 3);
   const categoryCount = new Set(posts.map(post => post.category)).size;
   const latestPost = featuredPosts[0];
+  const siteName = settings ? `${settings.siteNamePrefix}${settings.siteNameSuffix}`.trim() : 'website';
 
   return (
     <div className="text-slate-800 dark:text-white">
@@ -101,7 +104,7 @@ const Home: React.FC = () => {
             </h1>
 
             <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-600 sm:text-xl dark:text-slate-300">
-              CosmoGIS kết nối GIS, viễn thám và khoa học hành tinh để biến dữ liệu phức tạp thành những câu chuyện có thể khám phá.
+              {siteName} kết nối GIS, viễn thám và khoa học hành tinh để biến dữ liệu phức tạp thành những câu chuyện có thể khám phá.
             </p>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
@@ -109,7 +112,7 @@ const Home: React.FC = () => {
                 Khám phá bài viết <ArrowRight className="ml-2 transition-transform group-hover:translate-x-1" size={19} />
               </Link>
               <Link to="/about" className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white/60 px-6 py-3.5 font-bold text-slate-700 backdrop-blur transition hover:-translate-y-0.5 hover:border-sky-400 hover:text-sky-700 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:border-cyan-300/50 dark:hover:text-cyan-300">
-                Về CosmoGIS
+                Về {siteName}
               </Link>
             </div>
 
@@ -214,7 +217,7 @@ const Home: React.FC = () => {
       <section className="px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
         <div className="relative mx-auto grid max-w-7xl overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-12 text-white shadow-2xl sm:px-10 lg:grid-cols-[1fr_auto] lg:items-center lg:px-14 lg:py-16">
           <div className="absolute -right-20 -top-32 h-80 w-80 rounded-full border border-cyan-300/20" /><div className="absolute -right-6 -top-20 h-56 w-56 rounded-full border border-violet-300/20" />
-          <div className="relative max-w-2xl"><p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">Tọa độ tiếp theo</p><h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">Có một câu hỏi đang chờ được lập bản đồ?</h2><p className="mt-4 leading-7 text-slate-300">Kết nối với CosmoGIS để trao đổi về dữ liệu không gian, WebGIS và những câu chuyện khoa học cần được trực quan hóa.</p></div>
+          <div className="relative max-w-2xl"><p className="text-sm font-bold uppercase tracking-[0.2em] text-cyan-300">Tọa độ tiếp theo</p><h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">Có một câu hỏi đang chờ được lập bản đồ?</h2><p className="mt-4 leading-7 text-slate-300">Kết nối với {siteName} để trao đổi về dữ liệu không gian, WebGIS và những câu chuyện khoa học cần được trực quan hóa.</p></div>
           <Link to="/contact" className="group relative mt-8 inline-flex items-center justify-center rounded-xl bg-cyan-300 px-6 py-3.5 font-bold text-slate-950 transition hover:bg-white lg:mt-0">Bắt đầu trao đổi <ArrowUpRight className="ml-2 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" size={18} /></Link>
         </div>
       </section>

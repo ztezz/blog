@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Link, useLocation } from '../utils/router';
 import { Menu, X, Globe, ChevronDown, ExternalLink, Shield, Sun, Moon } from 'lucide-react';
 import StarBackground from './StarBackground';
@@ -10,6 +10,10 @@ import { SiteSettings, NavItem } from '../types';
 interface LayoutProps {
   children: React.ReactNode;
 }
+
+const SiteSettingsContext = createContext<SiteSettings | null>(null);
+
+export const useSiteSettings = () => useContext(SiteSettingsContext);
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -64,6 +68,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     fetchSettings();
   }, [location]);
 
+  useEffect(() => {
+    const handleSettingsUpdate = (event: Event) => setSettings((event as CustomEvent<SiteSettings>).detail);
+    window.addEventListener('site-settings-updated', handleSettingsUpdate);
+    return () => window.removeEventListener('site-settings-updated', handleSettingsUpdate);
+  }, []);
+
   // Update Favicon dynamically
   useEffect(() => {
     if (settings && settings.faviconUrl) {
@@ -76,6 +86,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       link.href = settings.faviconUrl;
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (!settings || /^\/blog\/[^/]+$/.test(location.pathname)) return;
+    const siteName = `${settings.siteNamePrefix}${settings.siteNameSuffix}`.trim();
+    const baseTitle = settings.pageTitle?.trim() || siteName;
+    const routeTitles: Record<string, string> = {
+      '/': baseTitle,
+      '/blog': `Bài viết | ${siteName}`,
+      '/about': `Giới thiệu | ${siteName}`,
+      '/contact': `Liên hệ | ${siteName}`,
+      '/admin': `Đăng nhập | ${siteName}`,
+      '/admin/dashboard': `Bảng điều khiển | ${siteName}`,
+      '/admin/create': `Tạo bài viết | ${siteName}`,
+      '/admin/settings': `Cài đặt | ${siteName}`,
+      '/admin/users': `Người dùng | ${siteName}`,
+      '/admin/categories': `Danh mục | ${siteName}`,
+      '/admin/mailbox': `Hộp thư | ${siteName}`
+    };
+    document.title = routeTitles[location.pathname]
+      || (location.pathname.startsWith('/admin/edit/') ? `Chỉnh sửa bài viết | ${siteName}` : baseTitle);
+  }, [location.pathname, settings]);
 
   // Helper: Đảm bảo link ngoài luôn có https://
   const getSafeExternalLink = (path: string) => {
@@ -155,6 +186,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   if (!settings) return <div className="min-h-screen bg-sky-50 dark:bg-slate-950 transition-colors duration-500"></div>; // Loading state
 
   return (
+    <SiteSettingsContext.Provider value={settings}>
     <div className="min-h-screen relative flex flex-col font-sans text-slate-800 dark:text-gray-100 overflow-x-hidden transition-colors duration-500 bg-sky-50 dark:bg-slate-950">
       
       {/* Background Logic - Hidden on Admin pages to avoid layout clutter */}
@@ -176,7 +208,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="absolute inset-0 bg-sky-400/20 dark:bg-cyan-400/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               {settings.logoUrl ? (
                 <div className="relative z-10 transition-transform duration-300 group-hover:scale-105">
-                  <img src={settings.logoUrl} alt="Logo" className="h-10 w-auto object-contain" />
+                  <img src={settings.logoUrl} alt={`Logo ${settings.siteNamePrefix}${settings.siteNameSuffix}`} className="h-10 w-auto object-contain" />
                 </div>
               ) : (
                 <div className="relative z-10 bg-gradient-to-br from-sky-500 to-blue-600 dark:from-cyan-400 dark:to-blue-600 p-2 rounded-xl shadow-lg group-hover:shadow-cyan-400/50 transition-all duration-300">
@@ -327,6 +359,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </footer>
     </div>
+    </SiteSettingsContext.Provider>
   );
 };
 

@@ -4,8 +4,10 @@ import { Send } from 'lucide-react';
 import { sendMessage, getSettings } from '../utils/storage';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { DEFAULT_CONTACT_CONTENT } from '../constants';
+import { useSiteSettings } from '../components/Layout';
 
 const Contact: React.FC = () => {
+  const settings = useSiteSettings();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -15,6 +17,7 @@ const Contact: React.FC = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [contactContent, setContactContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const siteName = settings ? `${settings.siteNamePrefix}${settings.siteNameSuffix}`.trim() : 'website';
 
   useEffect(() => {
     getSettings().then(s => {
@@ -51,7 +54,7 @@ const Contact: React.FC = () => {
     <div className="min-h-screen py-16 px-4">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-display font-bold text-slate-900 dark:text-white text-center mb-16 drop-shadow-sm">
-          Kết Nối Với <span className="text-sky-600 dark:text-cyan-400">CosmoGIS</span>
+          Kết Nối Với <span className="text-sky-600 dark:text-cyan-400">{siteName}</span>
         </h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -95,7 +98,7 @@ const Contact: React.FC = () => {
                   <Send className="text-green-600 dark:text-green-400" size={40} />
                 </div>
                 <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Đã gửi thành công!</h3>
-                <p className="text-slate-600 dark:text-gray-400">Cảm ơn bạn đã liên hệ. Đội ngũ CosmoGIS sẽ phản hồi tín hiệu của bạn sớm nhất có thể.</p>
+                <p className="text-slate-600 dark:text-gray-400">Cảm ơn bạn đã liên hệ. Đội ngũ {siteName} sẽ phản hồi tín hiệu của bạn sớm nhất có thể.</p>
                 <button 
                   onClick={() => setIsSubmitted(false)}
                   className="mt-8 text-sky-600 dark:text-cyan-400 hover:underline font-bold"

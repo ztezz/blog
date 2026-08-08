@@ -4,9 +4,13 @@ import { Target, Users, Sparkles } from 'lucide-react';
 import { getSettings } from '../utils/storage';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { DEFAULT_ABOUT_CONTENT } from '../constants';
+import { useSiteSettings } from '../components/Layout';
 
 const About: React.FC = () => {
+  const settings = useSiteSettings();
   const [content, setContent] = useState<string>('');
+  const siteName = settings ? `${settings.siteNamePrefix}${settings.siteNameSuffix}`.trim() : 'website';
+  const renderedContent = content.split('{{siteName}}').join(siteName).split('CosmoGIS').join(siteName);
   
   useEffect(() => {
     getSettings().then(s => {
@@ -49,7 +53,7 @@ const About: React.FC = () => {
                         [&_.text-space-neon]:!text-sky-600 dark:[&_.text-space-neon]:!text-cyan-400
                         [&_.text-space-purple]:!text-purple-600 dark:[&_.text-space-purple]:!text-purple-400
                         "
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(renderedContent) }}
             />
         </div>
 

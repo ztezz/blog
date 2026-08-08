@@ -207,9 +207,11 @@ export const saveSettings = async (settings: SiteSettings): Promise<void> => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
     });
+    window.dispatchEvent(new CustomEvent<SiteSettings>('site-settings-updated', { detail: settings }));
     return;
   }
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  window.dispatchEvent(new CustomEvent<SiteSettings>('site-settings-updated', { detail: settings }));
 };
 
 export const getAdminPostById = async (id: string): Promise<BlogPost | undefined> => {
