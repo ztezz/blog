@@ -166,7 +166,8 @@ describe('content automation helpers', () => {
         const request = JSON.parse(options.body || '{}');
         if (request.model === 'database-model') return new Response('temporary failure', { status: 500 });
         expect(request.model).toBe('backup-model');
-        if (request.temperature === 0) {
+        const isSchemaRepair = request.messages?.[0]?.content?.includes('bộ sửa cấu trúc JSON');
+        if (request.temperature === 0 && !isSchemaRepair) {
           return new Response(JSON.stringify({
             choices: [{ message: { content: JSON.stringify({
               assessments: [{ claimIndex: 0, status: 'supported', sourceIds: ['S1'], note: 'Dữ kiện xuất hiện trong S1' }]
@@ -179,7 +180,7 @@ describe('content automation helpers', () => {
             excerpt: 'Phân tích dữ liệu bản đồ vệ tinh mới phục vụ nghiên cứu địa hình Sao Hỏa và các ứng dụng GIS chuyên nghiệp.',
             content: `<h2>Tổng quan</h2><p>${'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình và cung cấp bằng chứng nghiên cứu đáng tin cậy. '.repeat(28)}</p><h2>Ứng dụng</h2><p>${'Nhóm chuyên gia sử dụng kết quả quan sát để phân tích bề mặt và xây dựng lớp bản đồ chuyên đề. '.repeat(20)}</p><script>alert(1)</script>`,
             category: 'space-tech',
-            tags: ['Sao Hỏa', 'GIS', 'Vệ tinh'],
+            tags: isSchemaRepair ? ['Sao Hỏa', 'GIS', 'Vệ tinh'] : 'Sao Hỏa, GIS, Vệ tinh',
             seoTitle: 'Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới',
             metaDescription: 'Khám phá dữ liệu vệ tinh hỗ trợ lập bản đồ Sao Hỏa. Nội dung không chứa quảng-cáo trả phí ngoài phần kiểm thử chính sách.',
             keywords: 'bản đồ Sao Hỏa, dữ liệu vệ tinh',
@@ -218,7 +219,7 @@ describe('content automation helpers', () => {
     expect(result.status).toBe('draft');
     expect(result.qualityScore).toBeGreaterThan(50);
     expect(result.model).toBe('backup-model');
-    expect(result.attempts).toBe(4);
+    expect(result.attempts).toBe(5);
     const status = await service.status();
     expect(status.running).toBe(false);
     expect(status.progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 1, processedCandidates: 1 });
@@ -244,7 +245,7 @@ describe('content automation helpers', () => {
       presentBlockedKeywords: ['quảng cáo trả phí']
     });
     expect(qualityReport.verification).toMatchObject({ supported: 1, partial: 0, unsupported: 0 });
-    expect(qualityReport.gateway).toMatchObject({ writerModel: 'backup-model', writerAttempts: 2, factCheckModel: 'backup-model', factCheckAttempts: 2 });
+    expect(qualityReport.gateway).toMatchObject({ writerModel: 'backup-model', writerAttempts: 3, factCheckModel: 'backup-model', factCheckAttempts: 2 });
     expect(postInsert.params[15]).toBe('Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới');
     expect(postInsert.params[17]).toBe('["bản đồ Sao Hỏa","dữ liệu vệ tinh"]');
     expect(qualityReport.media).toMatchObject({ imageModel: 'ag/gemini-3.1-flash-image', generatedTitleImage: true, generatedContentImages: 1 });
@@ -312,6 +313,49 @@ describe('content automation helpers', () => {
     expect((await service.status()).lastResult).toMatchObject({ status: 'failed', error: expect.stringContaining('HTTP 401') });
     expect(queries.filter(query => query.sql.includes('INSERT INTO ai_generation_log'))).toHaveLength(1);
     expect(queries.some(query => query.sql.includes('UPDATE ai_automation_runs SET status=$1') && query.params[0] === 'failed')).toBe(true);
+  });
+
+  it('attempts schema repair only once before failing with concise field errors', async () => {
+    const db = {
+      query: vi.fn(async (sql) => {
+        if (sql.includes('SELECT * FROM ai_automation_settings')) return { rows: [{
+          enabled: 1,
+          base_url: 'http://9router.test/v1',
+          api_key: '',
+          model: 'writer',
+          rss_feeds: '[]',
+          website_urls: '[]',
+          discovery_enabled: 1,
+          discovery_topics: '["Mars"]',
+          allowed_domains: '["93.184.216.34"]',
+          blocked_domains: '[]',
+          run_hour_utc: 1,
+          author: 'AI',
+          default_image_url: '/image.jpg',
+          fallback_models: '[]',
+          retry_count: 0
+        }] };
+        if (sql.includes('INSERT INTO ai_generation_log')) return { rowCount: 1, rows: [] };
+        if (sql.includes('SELECT site_name_prefix')) return { rows: [{ site_name_prefix: 'GIS', site_name_suffix: 'VN' }] };
+        if (sql.includes('SELECT name FROM categories')) return { rows: [{ name: 'Vũ trụ' }] };
+        if (sql.includes('SELECT id, name FROM categories')) return { rows: [{ id: 'space-tech', name: 'Vũ trụ' }] };
+        return { rows: [], rowCount: 1 };
+      })
+    };
+    let chatCalls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (String(url).includes('html.duckduckgo.com/html/')) return new Response('<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2F93.184.216.34%2Farticle">Mars mapping source</a><a class="result__snippet">Orbital terrain evidence</a></div>', { status: 200 });
+      if (String(url).endsWith('/chat/completions')) {
+        chatCalls += 1;
+        return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ title: 'Quá ngắn', tags: 'sai kiểu' }) } }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (String(url).endsWith('/robots.txt')) return new Response('User-agent: *\nAllow: /', { status: 200 });
+      return new Response(`<article><h1>Mars source</h1><p>${'Orbital observations provide detailed terrain mapping evidence. '.repeat(12)}</p></article>`, { status: 200 });
+    }));
+
+    const service = createAutomation({ db });
+    await expect(service.run()).rejects.toThrow(/JSON vẫn sai schema sau một lượt sửa:[\s\S]*excerpt:/);
+    expect(chatCalls).toBe(2);
   });
 
   it('returns diagnostics when topic discovery finds no source', async () => {
