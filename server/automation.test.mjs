@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import automation from './automation.js';
 
-const { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime, selectRelatedCandidates, sourceSimilarity } = automation;
+const { containsPolicyPhrase, createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime, selectRelatedCandidates, sourceSimilarity } = automation;
 
 const temporaryDirectories = [];
 
@@ -85,6 +85,14 @@ describe('content automation helpers', () => {
     expect(selectRelatedCandidates(anchor, candidates)).toEqual([candidates[2]]);
   });
 
+  it('matches editorial policy phrases without Vietnamese accents or letter case', () => {
+    expect(containsPolicyPhrase('Nội dung CÁ CƯỢC không phù hợp', 'ca cuoc')).toBe(true);
+    expect(containsPolicyPhrase('Bài viết về dữ liệu không gian', 'DỮ LIỆU KHÔNG GIAN')).toBe(true);
+    expect(containsPolicyPhrase('Nền tảng logistics hiện đại', 'GIS')).toBe(false);
+    expect(containsPolicyPhrase('Bất kỳ nội dung nào', '  ')).toBe(false);
+    expect(containsPolicyPhrase('Bản đồ Sao Hỏa', 'cá cược')).toBe(false);
+  });
+
   it('creates one sanitized AI draft with a quality score and records its source', async () => {
     const uploadDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cosmogis-images-'));
     temporaryDirectories.push(uploadDir);
@@ -113,7 +121,15 @@ describe('content automation helpers', () => {
             retry_count: 0,
             image_generation_enabled: 1,
             image_model: 'ag/gemini-3.1-flash-image',
-            generated_content_image_count: 1
+            generated_content_image_count: 1,
+            approval_mode: 'quality_gate',
+            quality_threshold: 50,
+            article_style: 'analysis',
+            target_word_count: 500,
+            target_audience: 'professional',
+            editorial_prompt: 'Ưu tiên thuật ngữ GIS tiếng Việt.',
+            required_keywords: '["dữ liệu vệ tinh"]',
+            blocked_keywords: '["quảng cáo trả phí"]'
           }]
         };
         if (sql.includes('INSERT INTO ai_generation_log')) return { rowCount: 1, rows: [] };
@@ -141,12 +157,12 @@ describe('content automation helpers', () => {
         return new Response(JSON.stringify({
           choices: [{ message: { content: JSON.stringify({
             title: 'Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới',
-            excerpt: 'Phân tích dữ liệu bản đồ mới phục vụ nghiên cứu địa hình Sao Hỏa.',
-            content: `<h2>Tổng quan</h2><p>${'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình. '.repeat(12)}</p><script>alert(1)</script>`,
+            excerpt: 'Phân tích dữ liệu bản đồ vệ tinh mới phục vụ nghiên cứu địa hình Sao Hỏa và các ứng dụng GIS chuyên nghiệp.',
+            content: `<h2>Tổng quan</h2><p>${'Dữ liệu vệ tinh hỗ trợ lập bản đồ địa hình và cung cấp bằng chứng nghiên cứu đáng tin cậy. '.repeat(28)}</p><h2>Ứng dụng</h2><p>${'Nhóm chuyên gia sử dụng kết quả quan sát để phân tích bề mặt và xây dựng lớp bản đồ chuyên đề. '.repeat(20)}</p><script>alert(1)</script>`,
             category: 'space-tech',
-            tags: ['Sao Hỏa', 'GIS'],
+            tags: ['Sao Hỏa', 'GIS', 'Vệ tinh'],
             seoTitle: 'Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới',
-            metaDescription: 'Khám phá cách dữ liệu vệ tinh mới hỗ trợ lập bản đồ và nghiên cứu địa hình Sao Hỏa với thông tin từ nguồn tham khảo.',
+            metaDescription: 'Khám phá dữ liệu vệ tinh hỗ trợ lập bản đồ Sao Hỏa. Nội dung không chứa quảng-cáo trả phí ngoài phần kiểm thử chính sách.',
             keywords: ['bản đồ Sao Hỏa', 'dữ liệu vệ tinh'],
             imageAlt: 'Bản đồ địa hình Sao Hỏa từ dữ liệu vệ tinh',
             imageCaption: 'Dữ liệu vệ tinh phục vụ nghiên cứu địa hình Sao Hỏa.',
@@ -181,7 +197,7 @@ describe('content automation helpers', () => {
     const postInsert = queries.find(query => query.sql.includes('INSERT INTO posts'));
 
     expect(result.status).toBe('draft');
-    expect(result.qualityScore).toBeGreaterThan(0);
+    expect(result.qualityScore).toBeGreaterThan(50);
     expect(result.model).toBe('backup-model');
     expect(result.attempts).toBe(4);
     const status = await service.status();
@@ -200,7 +216,14 @@ describe('content automation helpers', () => {
     expect(postInsert.params[10]).toBe('draft');
     expect(postInsert.params[11]).toBe(result.qualityScore);
     const qualityReport = JSON.parse(postInsert.params[12]);
-    expect(qualityReport.hardFailures).toEqual([]);
+    expect(qualityReport.hardFailures).toContain('Chứa từ khóa bị chặn: quảng cáo trả phí');
+    expect(qualityReport.policy).toMatchObject({
+      articleStyle: 'analysis',
+      targetAudience: 'professional',
+      targetWordCount: 500,
+      missingRequiredKeywords: [],
+      presentBlockedKeywords: ['quảng cáo trả phí']
+    });
     expect(qualityReport.verification).toMatchObject({ supported: 1, partial: 0, unsupported: 0 });
     expect(qualityReport.gateway).toMatchObject({ writerModel: 'backup-model', writerAttempts: 2, factCheckModel: 'backup-model', factCheckAttempts: 2 });
     expect(postInsert.params[15]).toBe('Bản đồ Sao Hỏa từ dữ liệu vệ tinh mới');

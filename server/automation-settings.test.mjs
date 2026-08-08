@@ -45,8 +45,26 @@ describe('automation settings recovery', () => {
       blocked_domains: '[]',
       run_hour_utc: 1,
       author: 'AI',
-      default_image_url: '/image.jpg'
-    })).toMatchObject({ apiKey: '', hasApiKey: true, rssFeeds: [], websites: [], discoveryTopics: ['Mars'] });
+      default_image_url: '/image.jpg',
+      article_style: 'tutorial',
+      target_word_count: 1800,
+      target_audience: 'professional',
+      editorial_prompt: 'Giải thích thuật ngữ khi xuất hiện lần đầu.',
+      required_keywords: '["dữ liệu không gian"]',
+      blocked_keywords: '["cá cược"]'
+    })).toMatchObject({
+      apiKey: '',
+      hasApiKey: true,
+      rssFeeds: [],
+      websites: [],
+      discoveryTopics: ['Mars'],
+      articleStyle: 'tutorial',
+      targetWordCount: 1800,
+      targetAudience: 'professional',
+      editorialPrompt: 'Giải thích thuật ngữ khi xuất hiện lần đầu.',
+      requiredKeywords: ['dữ liệu không gian'],
+      blockedKeywords: ['cá cược']
+    });
   });
 
   it('splits legacy comma-separated URLs stored as a single array item', () => {

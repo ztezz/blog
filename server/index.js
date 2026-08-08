@@ -357,6 +357,12 @@ const initDb = async () => {
       ['image_generation_enabled', 'INTEGER NOT NULL DEFAULT 0'],
       ['image_model', "TEXT NOT NULL DEFAULT 'ag/gemini-3.1-flash-image'"],
       ['generated_content_image_count', 'INTEGER NOT NULL DEFAULT 1'],
+      ['article_style', "TEXT NOT NULL DEFAULT 'analysis'"],
+      ['target_word_count', 'INTEGER NOT NULL DEFAULT 1200'],
+      ['target_audience', "TEXT NOT NULL DEFAULT 'general'"],
+      ['editorial_prompt', "TEXT NOT NULL DEFAULT ''"],
+      ['required_keywords', "TEXT NOT NULL DEFAULT '[]'"],
+      ['blocked_keywords', "TEXT NOT NULL DEFAULT '[]'"],
       ['updated_at', 'TIMESTAMP']
     ];
     for (const [column, definition] of settingsMigrations) {
@@ -517,9 +523,11 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
        allowed_domains=$12, blocked_domains=$13, run_hour_utc=$14,
        author=$15, default_image_url=$16, approval_mode=$17, quality_threshold=$18,
        fallback_models=$19, retry_count=$20, image_generation_enabled=$21,
-       image_model=$22, generated_content_image_count=$23, updated_at=CURRENT_TIMESTAMP
+       image_model=$22, generated_content_image_count=$23, article_style=$24,
+       target_word_count=$25, target_audience=$26, editorial_prompt=$27,
+       required_keywords=$28, blocked_keywords=$29, updated_at=CURRENT_TIMESTAMP
        WHERE id=1`,
-      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount, settings.imageGenerationEnabled ? 1 : 0, settings.imageModel, settings.generatedContentImageCount]
+      [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount, settings.imageGenerationEnabled ? 1 : 0, settings.imageModel, settings.generatedContentImageCount, settings.articleStyle, settings.targetWordCount, settings.targetAudience, settings.editorialPrompt, JSON.stringify(settings.requiredKeywords), JSON.stringify(settings.blockedKeywords)]
     );
     await automation.reschedule();
     const saved = await ensureAutomationSettings(db);

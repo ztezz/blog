@@ -21,6 +21,7 @@ export interface BlogPost {
     checks?: string[];
     warnings?: string[];
     hardFailures?: string[];
+    wordCount?: number;
     verification?: {
       supported: number;
       partial: number;
@@ -29,6 +30,7 @@ export interface BlogPost {
     };
     gateway?: { writerModel?: string; writerAttempts?: number; factCheckModel?: string | null; factCheckAttempts?: number };
     media?: { imageModel?: string | null; generatedTitleImage?: boolean; generatedContentImages?: number; warnings?: string[] };
+    policy?: { articleStyle?: AutomationSettings['articleStyle']; targetAudience?: AutomationSettings['targetAudience']; targetWordCount?: number; missingRequiredKeywords?: string[]; presentBlockedKeywords?: string[] };
   } | null;
   sourceUrl?: string;
   sourceUrls?: string[];
@@ -93,6 +95,12 @@ export interface AutomationSettings {
   imageGenerationEnabled: boolean;
   imageModel: string;
   generatedContentImageCount: number;
+  articleStyle: 'news' | 'analysis' | 'tutorial' | 'research_summary';
+  targetWordCount: number;
+  targetAudience: 'general' | 'beginner' | 'professional' | 'academic';
+  editorialPrompt: string;
+  requiredKeywords: string[];
+  blockedKeywords: string[];
 }
 
 export interface AutomationConnectionResult {

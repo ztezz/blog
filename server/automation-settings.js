@@ -65,6 +65,12 @@ const serializeAutomationSettings = settings => ({
   ,imageGenerationEnabled: Boolean(settings.image_generation_enabled)
   ,imageModel: settings.image_model || 'ag/gemini-3.1-flash-image'
   ,generatedContentImageCount: Number(settings.generated_content_image_count ?? 1)
+  ,articleStyle: ['news', 'analysis', 'tutorial', 'research_summary'].includes(settings.article_style) ? settings.article_style : 'analysis'
+  ,targetWordCount: Number(settings.target_word_count ?? 1200)
+  ,targetAudience: ['general', 'beginner', 'professional', 'academic'].includes(settings.target_audience) ? settings.target_audience : 'general'
+  ,editorialPrompt: settings.editorial_prompt || ''
+  ,requiredKeywords: parseJsonArray(settings.required_keywords, true)
+  ,blockedKeywords: parseJsonArray(settings.blocked_keywords, true)
 });
 
 module.exports = { ensureAutomationSettings, parseJsonArray, serializeAutomationSettings, splitList };

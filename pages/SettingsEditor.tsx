@@ -20,6 +20,8 @@ const SettingsEditor: React.FC = () => {
   const [allowedDomainsText, setAllowedDomainsText] = useState('');
   const [blockedDomainsText, setBlockedDomainsText] = useState('');
   const [fallbackModelsText, setFallbackModelsText] = useState('');
+  const [requiredKeywordsText, setRequiredKeywordsText] = useState('');
+  const [blockedKeywordsText, setBlockedKeywordsText] = useState('');
   const [automationError, setAutomationError] = useState('');
   const [automationSaveStatus, setAutomationSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -54,6 +56,8 @@ const SettingsEditor: React.FC = () => {
       setAllowedDomainsText(loadedSettings.allowedDomains.join('\n'));
       setBlockedDomainsText(loadedSettings.blockedDomains.join('\n'));
       setFallbackModelsText(loadedSettings.fallbackModels.join('\n'));
+      setRequiredKeywordsText(loadedSettings.requiredKeywords.join('\n'));
+      setBlockedKeywordsText(loadedSettings.blockedKeywords.join('\n'));
     }).catch(error => console.error('Failed to load AI settings:', error));
   }, [navigate]);
 
@@ -270,6 +274,8 @@ const SettingsEditor: React.FC = () => {
           allowedDomains: allowedDomainsText.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean),
           blockedDomains: blockedDomainsText.split(/[,\r\n]+/).map(value => value.trim().toLowerCase()).filter(Boolean)
           ,fallbackModels: fallbackModelsText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean)
+          ,requiredKeywords: requiredKeywordsText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean)
+          ,blockedKeywords: blockedKeywordsText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean)
         });
         setAutomationSettings(saved);
         setRssFeedsText(saved.rssFeeds.join('\n'));
@@ -278,6 +284,8 @@ const SettingsEditor: React.FC = () => {
         setAllowedDomainsText(saved.allowedDomains.join('\n'));
         setBlockedDomainsText(saved.blockedDomains.join('\n'));
         setFallbackModelsText(saved.fallbackModels.join('\n'));
+        setRequiredKeywordsText(saved.requiredKeywords.join('\n'));
+        setBlockedKeywordsText(saved.blockedKeywords.join('\n'));
         setAutomationSaveStatus({ type: 'success', message: 'Đã lưu thiết lập Tự động AI thành công.' });
       } else if (settings) {
       await saveSettings(settings);
@@ -684,6 +692,20 @@ const SettingsEditor: React.FC = () => {
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Tên tác giả</label>
                     <input type="text" value={automationSettings.author} onChange={event => setAutomationSettings({ ...automationSettings, author: event.target.value })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
+                  </div>
+                  <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+                    <p className="mb-4 text-sm font-bold text-amber-900 dark:text-amber-200">Chính sách nội dung và phong cách</p>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <label><span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Loại bài</span><select value={automationSettings.articleStyle} onChange={event => setAutomationSettings({ ...automationSettings, articleStyle: event.target.value as AutomationSettings['articleStyle'] })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white"><option value="news">Tin ngắn</option><option value="analysis">Phân tích chuyên sâu</option><option value="tutorial">Hướng dẫn kỹ thuật</option><option value="research_summary">Tổng hợp nghiên cứu</option></select></label>
+                      <label><span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Độc giả</span><select value={automationSettings.targetAudience} onChange={event => setAutomationSettings({ ...automationSettings, targetAudience: event.target.value as AutomationSettings['targetAudience'] })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white"><option value="general">Phổ thông</option><option value="beginner">Người mới</option><option value="professional">Chuyên gia</option><option value="academic">Học thuật</option></select></label>
+                      <label><span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Số từ mục tiêu</span><input type="number" min="500" max="5000" step="100" value={automationSettings.targetWordCount} onChange={event => setAutomationSettings({ ...automationSettings, targetWordCount: Number(event.target.value) })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></label>
+                    </div>
+                    <label className="mt-4 block"><span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Chỉ dẫn biên tập bổ sung</span><textarea rows={4} value={automationSettings.editorialPrompt} onChange={event => setAutomationSettings({ ...automationSettings, editorialPrompt: event.target.value })} maxLength={4000} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" placeholder="Ví dụ: ưu tiên thuật ngữ GIS tiếng Việt, giải thích từ chuyên môn khi xuất hiện lần đầu..." /><span className="mt-1 block text-right text-xs text-slate-500">{automationSettings.editorialPrompt.length}/4000</span></label>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label><span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Từ khóa bắt buộc, mỗi dòng một cụm</span><textarea rows={5} value={requiredKeywordsText} onChange={event => setRequiredKeywordsText(event.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" placeholder={'WebGIS\ndữ liệu không gian'} /></label>
+                      <label><span className="mb-2 block text-sm text-slate-600 dark:text-gray-300">Từ khóa chặn, mỗi dòng một cụm</span><textarea rows={5} value={blockedKeywordsText} onChange={event => setBlockedKeywordsText(event.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" placeholder={'cá cược\nquảng cáo trả phí'} /></label>
+                    </div>
+                    <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">Bài có từ khóa chặn hoặc thiếu từ khóa bắt buộc luôn bị giữ ở bản nháp, kể cả khi đạt điểm tự đăng.</p>
                   </div>
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Ảnh mặc định</label>

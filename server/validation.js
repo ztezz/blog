@@ -32,6 +32,7 @@ const normalizeList = value => Array.isArray(value)
   : value;
 const urlList = z.preprocess(normalizeList, z.array(httpUrl).max(50));
 const domainList = z.preprocess(normalizeList, z.array(domain).max(100));
+const normalizeKeyword = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 const navItem = z.lazy(() => z.object({
   id,
@@ -67,11 +68,21 @@ const schemas = {
     retryCount: z.number().int().min(0).max(3).optional().default(1),
     imageGenerationEnabled: z.boolean().optional().default(false),
     imageModel: z.string().trim().max(200).optional().default('ag/gemini-3.1-flash-image'),
-    generatedContentImageCount: z.number().int().min(0).max(2).optional().default(1)
+    generatedContentImageCount: z.number().int().min(0).max(2).optional().default(1),
+    articleStyle: z.enum(['news', 'analysis', 'tutorial', 'research_summary']).optional().default('analysis'),
+    targetWordCount: z.number().int().min(500).max(5000).optional().default(1200),
+    targetAudience: z.enum(['general', 'beginner', 'professional', 'academic']).optional().default('general'),
+    editorialPrompt: z.string().trim().max(4000).optional().default(''),
+    requiredKeywords: z.array(z.string().trim().min(2).max(100)).max(20).optional().default([]),
+    blockedKeywords: z.array(z.string().trim().min(2).max(100)).max(50).optional().default([])
   }).superRefine((value, context) => {
     if (value.enabled && !value.model) context.addIssue({ code: 'custom', message: 'Model is required when automation is enabled', path: ['model'] });
     if (value.enabled && value.rssFeeds.length + value.websites.length === 0 && !value.discoveryEnabled) context.addIssue({ code: 'custom', message: 'At least one RSS feed, website or topic discovery must be enabled', path: ['rssFeeds'] });
     if (value.imageGenerationEnabled && !value.imageModel) context.addIssue({ code: 'custom', message: 'Image model is required when image generation is enabled', path: ['imageModel'] });
+    const blockedKeywords = new Set(value.blockedKeywords.map(normalizeKeyword));
+    if (value.requiredKeywords.some(keyword => blockedKeywords.has(normalizeKeyword(keyword)))) {
+      context.addIssue({ code: 'custom', message: 'A keyword cannot be both required and blocked', path: ['blockedKeywords'] });
+    }
   }),
   automationConnectionTest: z.object({
     baseUrl: httpUrl,

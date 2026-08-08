@@ -69,6 +69,15 @@ describe('API request schemas', () => {
     expect(result.retryCount).toBe(1);
     expect(result.imageModel).toBe('ag/gemini-3.1-flash-image');
     expect(result.imageGenerationEnabled).toBe(false);
+    expect(result.articleStyle).toBe('analysis');
+    expect(result.targetWordCount).toBe(1200);
+    expect(result.targetAudience).toBe('general');
+    expect(result.requiredKeywords).toEqual([]);
+    expect(result.blockedKeywords).toEqual([]);
+    expect(schemas.automationSettings.safeParse({ ...result, targetWordCount: 499 }).success).toBe(false);
+    expect(schemas.automationSettings.safeParse({ ...result, targetWordCount: 5001 }).success).toBe(false);
+    expect(schemas.automationSettings.safeParse({ ...result, editorialPrompt: 'x'.repeat(4001) }).success).toBe(false);
+    expect(schemas.automationSettings.safeParse({ ...result, requiredKeywords: ['Dữ liệu không gian'], blockedKeywords: ['du lieu khong-gian'] }).success).toBe(false);
     expect(schemas.automationSettings.safeParse({ ...result, fallbackModels: Array(6).fill('model') }).success).toBe(false);
     expect(schemas.automationSettings.safeParse({ ...result, discoveryEnabled: false, rssFeeds: [], websites: [] }).success).toBe(false);
     expect(schemas.automationSettings.safeParse({ ...result, rssFeeds: [], websites: [] }).success).toBe(true);
