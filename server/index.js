@@ -384,7 +384,7 @@ const fixUrl = (url) => {
 
 // --- API ROUTES ---
 
-const automation = createAutomation({ db });
+const automation = createAutomation({ db, uploadDir, publicApiUrl });
 
 app.get('/', (req, res) => {
   res.json({

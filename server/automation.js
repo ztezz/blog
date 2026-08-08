@@ -1,14 +1,19 @@
 const { createHash } = require('crypto');
 const dns = require('dns').promises;
+const fs = require('fs').promises;
 const net = require('net');
+const path = require('path');
+const { randomUUID } = require('crypto');
 const { XMLParser } = require('fast-xml-parser');
 const cheerio = require('cheerio');
 const sanitizeHtml = require('sanitize-html');
 const { z } = require('zod');
 const { ensureAutomationSettings, parseJsonArray } = require('./automation-settings');
+const { detectImageType } = require('./media');
 
 const USER_AGENT = 'CosmoGISBot/1.0 (+content research; configured sources only)';
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const generatedPostSchema = z.object({
   title: z.string().trim().min(10).max(255),
   excerpt: z.string().trim().min(20).max(500),
@@ -29,6 +34,7 @@ const normalizeImageUrl = (value, pageUrl) => {
     return '';
   }
 };
+const escapeHtml = value => String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 
 const feedImageUrl = (item, feedUrl) => {
   const media = asArray(item['media:content'] || item['media:thumbnail'])[0];
@@ -82,25 +88,33 @@ const extractArticle = (html, url, fallback = {}) => {
   const $ = cheerio.load(html);
   const container = $('article').first().length ? $('article').first() : $('main').first().length ? $('main').first() : $('body');
   const imageCandidates = [
-    $('meta[property="og:image:secure_url"]').attr('content'),
-    $('meta[property="og:image"]').attr('content'),
-    $('meta[name="twitter:image"]').attr('content'),
-    $('meta[property="twitter:image"]').attr('content'),
-    $('link[rel="image_src"]').attr('href')
+    { src: $('meta[property="og:image:secure_url"]').attr('content'), alt: $('meta[property="og:image:alt"]').attr('content') },
+    { src: $('meta[property="og:image"]').attr('content'), alt: $('meta[property="og:image:alt"]').attr('content') },
+    { src: $('meta[name="twitter:image"]').attr('content'), alt: $('meta[name="twitter:image:alt"]').attr('content') },
+    { src: $('meta[property="twitter:image"]').attr('content'), alt: $('meta[property="twitter:image:alt"]').attr('content') },
+    { src: $('link[rel="image_src"]').attr('href'), alt: '' }
   ];
   container.find('img').each((_, element) => {
     const image = $(element);
     const width = Number(image.attr('width') || 0);
     const height = Number(image.attr('height') || 0);
     if ((width && width < 300) || (height && height < 180)) return;
-    imageCandidates.push(image.attr('data-src') || image.attr('data-lazy-src') || image.attr('src') || image.attr('srcset')?.split(',')[0]);
+    imageCandidates.push({
+      src: image.attr('data-src') || image.attr('data-lazy-src') || image.attr('src') || image.attr('srcset')?.split(',')[0],
+      alt: image.attr('alt') || image.closest('figure').find('figcaption').first().text().trim()
+    });
   });
-  const imageUrl = imageCandidates.map(value => normalizeImageUrl(value, url)).find(Boolean) || normalizeImageUrl(fallback.imageUrl, url);
+  const images = [...new Map(imageCandidates
+    .map(image => ({ url: normalizeImageUrl(image.src, url), alt: String(image.alt || '').replace(/\s+/g, ' ').trim() }))
+    .filter(image => image.url)
+    .map(image => [image.url, image])).values()].slice(0, 8);
+  const fallbackImageUrl = normalizeImageUrl(fallback.imageUrl, url);
+  if (images.length === 0 && fallbackImageUrl) images.push({ url: fallbackImageUrl, alt: '' });
   $('script, style, nav, footer, header, aside, form, noscript, svg').remove();
   const title = $('meta[property="og:title"]').attr('content') || $('h1').first().text() || $('title').text() || fallback.title || '';
   const paragraphs = container.find('p, h2, h3, li').map((_, element) => $(element).text().replace(/\s+/g, ' ').trim()).get().filter(text => text.length >= 20);
   const content = paragraphs.join('\n').slice(0, 30000) || fallback.summary || '';
-  return { url, title: title.replace(/\s+/g, ' ').trim(), content, imageUrl };
+  return { url, title: title.replace(/\s+/g, ' ').trim(), content, imageUrl: images[0]?.url || '', images };
 };
 
 const isPrivateIp = address => {
@@ -147,6 +161,29 @@ const fetchSource = async (value, redirects = 0) => {
   const buffer = Buffer.from(await response.arrayBuffer());
   if (buffer.length > MAX_RESPONSE_BYTES) throw new Error('Source response is too large');
   return buffer.toString('utf8');
+};
+
+const fetchImage = async (value, redirects = 0) => {
+  const url = await assertPublicUrl(value);
+  const response = await fetch(url, {
+    redirect: 'manual',
+    signal: AbortSignal.timeout(15000),
+    headers: { 'User-Agent': USER_AGENT, Accept: 'image/jpeg, image/png, image/gif, image/webp' }
+  });
+  if ([301, 302, 303, 307, 308].includes(response.status)) {
+    if (redirects >= 3) throw new Error('Too many image redirects');
+    const location = response.headers.get('location');
+    if (!location) throw new Error('Image redirect is missing Location');
+    return fetchImage(new URL(location, url).href, redirects + 1);
+  }
+  if (!response.ok) throw new Error(`Image returned HTTP ${response.status}`);
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > MAX_IMAGE_BYTES) throw new Error('Image is too large');
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > MAX_IMAGE_BYTES) throw new Error('Image is too large');
+  const imageType = detectImageType(buffer);
+  if (!imageType) throw new Error('Unsupported image format');
+  return { buffer, imageType };
 };
 
 const robotsAllows = async value => {
@@ -219,7 +256,7 @@ const parseDuckDuckGoResults = html => {
   return results.slice(0, 10);
 };
 
-const createAutomation = ({ db, env = process.env }) => {
+const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirname, 'uploads'), publicApiUrl = (env.PUBLIC_API_URL || `http://localhost:${env.PORT || 5001}`).replace(/\/$/, '') }) => {
   let running = false;
   let timer = null;
   let lastResult = null;
@@ -398,6 +435,26 @@ const createAutomation = ({ db, env = process.env }) => {
     return generatedPostSchema.parse(JSON.parse(cleanJsonText(content)));
   };
 
+  const persistArticleImages = async article => {
+    const stored = [];
+    await fs.mkdir(uploadDir, { recursive: true });
+    for (const image of article.images.slice(0, 4)) {
+      try {
+        const { buffer, imageType } = await fetchImage(image.url);
+        const filename = `ai-${randomUUID()}${imageType.extension}`;
+        await fs.writeFile(path.join(uploadDir, filename), buffer);
+        stored.push({
+          url: `${publicApiUrl}/api/uploads/${filename}`,
+          alt: image.alt || article.title,
+          sourceUrl: image.url
+        });
+      } catch (error) {
+        console.warn(`[Automation] Source image skipped (${image.url}):`, error.message);
+      }
+    }
+    return stored;
+  };
+
   const run = async () => {
     if (running) return { status: 'skipped', reason: 'already-running' };
     running = true;
@@ -430,6 +487,7 @@ const createAutomation = ({ db, env = process.env }) => {
           const html = await fetchSource(candidate.url);
           const article = extractArticle(html, candidate.url, candidate);
           if (article.content.length < 200) throw new Error('Source article does not contain enough text');
+          const storedImages = await persistArticleImages(article);
           const contentHash = createHash('sha256').update(article.content.replace(/\s+/g, ' ').trim().toLowerCase()).digest('hex');
           const duplicate = await db.query("SELECT source_url FROM ai_generation_log WHERE content_hash=$1 AND status='published'", [contentHash]);
           if (duplicate.rows.length > 0) {
@@ -444,10 +502,14 @@ const createAutomation = ({ db, env = process.env }) => {
           const generated = await callAi(config, article, categories);
           updateProgress('publishing', 'Đã nhận nội dung từ 9Router. Đang kiểm tra và đăng bài...', 90, { diagnostics: { ...diagnostics }, currentSource: candidate.url, totalCandidates: candidates.length, processedCandidates: index + 1 });
           const validCategory = categories.some(category => category.id === generated.category) ? generated.category : categories[0]?.id || 'space-tech';
+          const galleryImages = storedImages.slice(1, 4);
+          const imageGallery = galleryImages.length > 0
+            ? `<h2>Hình ảnh từ nguồn</h2>${galleryImages.map(image => `<figure><img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}" loading="lazy"><figcaption>${escapeHtml(image.alt)}. Ảnh: <a href="${escapeHtml(candidate.url)}" target="_blank" rel="noopener noreferrer nofollow">nguồn bài viết</a>.</figcaption></figure>`).join('')}`
+            : '';
           const sourceBlock = `<hr><p><strong>Nguồn tham khảo:</strong> <a href="${candidate.url}" target="_blank" rel="noopener noreferrer nofollow">${article.title || new URL(candidate.url).hostname}</a>. Bài viết được AI tổng hợp và biên tập lại.</p>`;
-          const content = sanitizeHtml(`${generated.content}${sourceBlock}`, {
-            allowedTags: ['p', 'h2', 'h3', 'ul', 'ol', 'li', 'strong', 'em', 'blockquote', 'a', 'hr'],
-            allowedAttributes: { a: ['href', 'target', 'rel'] },
+          const content = sanitizeHtml(`${generated.content}${imageGallery}${sourceBlock}`, {
+            allowedTags: ['p', 'h2', 'h3', 'ul', 'ol', 'li', 'strong', 'em', 'blockquote', 'a', 'hr', 'figure', 'figcaption', 'img'],
+            allowedAttributes: { a: ['href', 'target', 'rel'], img: ['src', 'alt', 'loading'] },
             allowedSchemes: ['http', 'https']
           });
           const hash = createHash('sha256').update(candidate.url).digest('hex').slice(0, 16);
@@ -455,7 +517,7 @@ const createAutomation = ({ db, env = process.env }) => {
           await db.query(
             `INSERT INTO posts (id, title, excerpt, content, author, date, category, tags, image_url, read_time)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-            [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), article.imageUrl || config.defaultImageUrl, readingTime(content)]
+            [postId, generated.title, generated.excerpt, content, config.author, new Date().toISOString().slice(0, 10), validCategory, JSON.stringify(generated.tags), storedImages[0]?.url || config.defaultImageUrl, readingTime(content)]
           );
           await db.query("UPDATE ai_generation_log SET status='published', post_id=$1, published_at=CURRENT_TIMESTAMP WHERE source_url=$2", [postId, candidate.url]);
           lastResult = { status: 'published', postId, sourceUrl: candidate.url, title: generated.title, completedAt: new Date().toISOString() };
@@ -519,4 +581,4 @@ const createAutomation = ({ db, env = process.env }) => {
   };
 };
 
-module.exports = { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime };
+module.exports = { createAutomation, extractArticle, extractArticleLinks, fetchImage, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime };

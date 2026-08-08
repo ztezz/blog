@@ -1,9 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import automation from './automation.js';
 
 const { createAutomation, extractArticle, extractArticleLinks, isAllowedDiscoveryUrl, isPrivateIp, normalizeImageUrl, parseDuckDuckGoResults, parseFeed, readingTime } = automation;
 
-afterEach(() => vi.unstubAllGlobals());
+const temporaryDirectories = [];
+
+afterEach(async () => {
+  vi.unstubAllGlobals();
+  await Promise.all(temporaryDirectories.splice(0).map(directory => fs.rm(directory, { recursive: true, force: true })));
+});
 
 describe('content automation helpers', () => {
   it('parses RSS and Atom links', () => {
@@ -66,6 +74,8 @@ describe('content automation helpers', () => {
   });
 
   it('publishes one sanitized AI article and records its source', async () => {
+    const uploadDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cosmogis-images-'));
+    temporaryDirectories.push(uploadDir);
     const queries = [];
     const db = {
       query: vi.fn(async (sql, params = []) => {
@@ -114,7 +124,8 @@ describe('content automation helpers', () => {
         }), { status: 200, headers: { 'content-type': 'application/json' } });
       }
       if (String(url).endsWith('/robots.txt')) return new Response('User-agent: *\nAllow: /', { status: 200 });
-      return new Response(`<meta property="og:image" content="https://93.184.216.34/images/mars-map.jpg"><article><h1>Mars source</h1><p>${'Satellite mapping facts for Mars terrain. '.repeat(12)}</p></article>`, { status: 200 });
+      if (String(url).includes('/images/')) return new Response(Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]), { status: 200, headers: { 'content-type': 'image/jpeg' } });
+      return new Response(`<meta property="og:image" content="https://93.184.216.34/images/mars-map.jpg"><article><h1>Mars source</h1><p>${'Satellite mapping facts for Mars terrain. '.repeat(12)}</p><img src="https://93.184.216.34/images/mars-rover.jpg" alt="Xe tự hành khảo sát Sao Hỏa" width="1200" height="800"></article>`, { status: 200 });
     }));
 
     const service = createAutomation({
@@ -123,7 +134,9 @@ describe('content automation helpers', () => {
         AI_MODEL: 'ignored-env-model',
         AI_RSS_FEEDS: 'https://ignored.example/feed.xml',
         AI_DEFAULT_IMAGE_URL: 'https://example.com/image.jpg'
-      }
+      },
+      uploadDir,
+      publicApiUrl: 'https://api.cosmogis.test'
     });
     const result = await service.run();
     const postInsert = queries.find(query => query.sql.includes('INSERT INTO posts'));
@@ -134,9 +147,12 @@ describe('content automation helpers', () => {
     expect(status.progress).toMatchObject({ stage: 'completed', percent: 100, totalCandidates: 1, processedCandidates: 1 });
     expect(postInsert).toBeTruthy();
     expect(postInsert.params[3]).toContain('Nguồn tham khảo');
+    expect(postInsert.params[3]).toContain('Hình ảnh từ nguồn');
+    expect(postInsert.params[3]).toContain('https://api.cosmogis.test/api/uploads/ai-');
     expect(postInsert.params[3]).not.toContain('<script');
     expect(postInsert.params[4]).toBe('Database Author');
-    expect(postInsert.params[8]).toBe('https://93.184.216.34/images/mars-map.jpg');
+    expect(postInsert.params[8]).toMatch(/^https:\/\/api\.cosmogis\.test\/api\/uploads\/ai-.+\.jpg$/);
+    expect(await fs.readdir(uploadDir)).toHaveLength(2);
     expect(fetch).toHaveBeenCalledWith('http://9router.test/v1/chat/completions', expect.anything());
     expect(queries.some(query => query.sql.includes("status='published'"))).toBe(true);
   });
