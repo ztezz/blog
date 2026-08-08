@@ -15,6 +15,10 @@ const settingsTabs = [
   { id: 'pages', label: 'Nội dung tĩnh', description: 'Trang giới thiệu và liên hệ', icon: FileText },
   { id: 'automation', label: 'Tự động AI', description: 'Nguồn, model và chính sách', icon: Sparkles }
 ] as const;
+const WEEKDAYS = [
+  { value: 1, label: 'T2' }, { value: 2, label: 'T3' }, { value: 3, label: 'T4' },
+  { value: 4, label: 'T5' }, { value: 5, label: 'T6' }, { value: 6, label: 'T7' }, { value: 0, label: 'CN' }
+];
 
 const SettingsEditor: React.FC = () => {
   const navigate = useNavigate();
@@ -33,6 +37,7 @@ const SettingsEditor: React.FC = () => {
   const [fallbackModelsText, setFallbackModelsText] = useState('');
   const [requiredKeywordsText, setRequiredKeywordsText] = useState('');
   const [blockedKeywordsText, setBlockedKeywordsText] = useState('');
+  const [onceRunAt, setOnceRunAt] = useState('');
   const [automationError, setAutomationError] = useState('');
   const [automationSaveStatus, setAutomationSaveStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
@@ -635,10 +640,33 @@ const SettingsEditor: React.FC = () => {
                   </div>
                   <p className="mt-3 text-xs text-purple-700 dark:text-purple-300">Khuyến nghị dùng chế độ bản nháp. Điểm được tính từ nội dung, cấu trúc, tags, ảnh và nguồn tham khảo.</p>
                 </div>
-                <label className="flex items-center gap-3 mb-6 text-slate-700 dark:text-gray-200">
+                <label className="flex items-center gap-3 mb-4 text-slate-700 dark:text-gray-200">
                   <input type="checkbox" checked={automationSettings.enabled} onChange={event => setAutomationSettings({ ...automationSettings, enabled: event.target.checked })} />
-                  Bật lịch tạo và đăng một bài mỗi ngày
+                  Bật lịch tự động tạo bài AI
                 </label>
+                <div className="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-500/20 dark:bg-sky-500/10">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <label className="block">
+                      <span className="mb-2 block text-sm font-bold text-sky-900 dark:text-sky-200">Kiểu lịch</span>
+                      <select value={automationSettings.schedule.type} onChange={event => {
+                        const type = event.target.value;
+                        const schedule = type === 'interval' ? { type: 'interval' as const, intervalHours: 6 } : type === 'once' ? { type: 'once' as const, runAt: [] } : { type: 'weekly' as const, daysOfWeek: [0, 1, 2, 3, 4, 5, 6], time: '08:00' };
+                        setAutomationSettings({ ...automationSettings, schedule });
+                      }} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white">
+                        <option value="weekly">Theo ngày trong tuần</option>
+                        <option value="interval">Lặp lại mỗi N giờ</option>
+                        <option value="once">Ngày giờ cụ thể</option>
+                      </select>
+                    </label>
+                    {automationSettings.schedule.type === 'weekly' && <>
+                      <label className="block"><span className="mb-2 block text-sm font-bold text-sky-900 dark:text-sky-200">Giờ bắt đầu</span><input type="time" value={automationSettings.schedule.time} onChange={event => { if (automationSettings.schedule.type === 'weekly') setAutomationSettings({ ...automationSettings, schedule: { type: 'weekly', daysOfWeek: automationSettings.schedule.daysOfWeek, time: event.target.value } }); }} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" required /></label>
+                      <div className="md:col-span-3"><span className="mb-2 block text-sm font-bold text-sky-900 dark:text-sky-200">Ngày chạy</span><div className="flex flex-wrap gap-2">{WEEKDAYS.map(day => { const selected = automationSettings.schedule.type === 'weekly' && automationSettings.schedule.daysOfWeek.includes(day.value); return <button type="button" key={day.value} onClick={() => { if (automationSettings.schedule.type !== 'weekly') return; const daysOfWeek = selected ? automationSettings.schedule.daysOfWeek.filter(value => value !== day.value) : [...automationSettings.schedule.daysOfWeek, day.value]; if (daysOfWeek.length > 0) setAutomationSettings({ ...automationSettings, schedule: { ...automationSettings.schedule, daysOfWeek } }); }} className={`h-10 min-w-10 rounded-lg border px-3 text-sm font-bold transition ${selected ? 'border-sky-600 bg-sky-600 text-white' : 'border-slate-300 bg-white text-slate-600 dark:border-white/20 dark:bg-slate-900 dark:text-slate-300'}`}>{day.label}</button>; })}</div></div>
+                    </>}
+                    {automationSettings.schedule.type === 'interval' && <label className="block"><span className="mb-2 block text-sm font-bold text-sky-900 dark:text-sky-200">Lặp lại sau mỗi</span><div className="flex items-center gap-2"><input type="number" min="1" max="168" value={automationSettings.schedule.intervalHours} onChange={event => setAutomationSettings({ ...automationSettings, schedule: { type: 'interval', intervalHours: Number(event.target.value) } })} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" required /><span className="text-sm font-bold text-slate-600 dark:text-slate-300">giờ</span></div></label>}
+                    {automationSettings.schedule.type === 'once' && <div className="md:col-span-3"><span className="mb-2 block text-sm font-bold text-sky-900 dark:text-sky-200">Các mốc chạy một lần</span><div className="flex flex-col gap-3 sm:flex-row"><input type="datetime-local" value={onceRunAt} onChange={event => setOnceRunAt(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /><button type="button" disabled={!onceRunAt || automationSettings.schedule.runAt.includes(onceRunAt)} onClick={() => { if (automationSettings.schedule.type !== 'once' || !onceRunAt) return; setAutomationSettings({ ...automationSettings, schedule: { type: 'once', runAt: [...automationSettings.schedule.runAt, onceRunAt].sort() } }); setOnceRunAt(''); }} className="rounded-lg bg-sky-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"><Plus className="mr-2 inline" size={16} />Thêm mốc</button></div><div className="mt-3 flex flex-wrap gap-2">{automationSettings.schedule.runAt.map(value => <span key={value} className="inline-flex items-center rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 dark:border-white/15 dark:bg-slate-900 dark:text-slate-200">{new Date(`${value}:00+07:00`).toLocaleString('vi-VN')}<button type="button" onClick={() => { if (automationSettings.schedule.type === 'once') setAutomationSettings({ ...automationSettings, schedule: { type: 'once', runAt: automationSettings.schedule.runAt.filter(item => item !== value) } }); }} className="ml-2 text-red-500" aria-label={`Xóa mốc ${value}`}><X size={14} /></button></span>)}</div>{automationSettings.schedule.runAt.length === 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Thêm ít nhất một mốc tương lai trước khi lưu.</p>}</div>}
+                  </div>
+                  <p className="mt-3 text-xs text-sky-700 dark:text-sky-300">Tất cả giờ hiển thị theo giờ Việt Nam (UTC+7). Đây là lúc AI bắt đầu tạo bài; bài được đăng sau khi xử lý xong nếu đạt chế độ kiểm duyệt.</p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">9Router Base URL</label>
@@ -665,10 +693,6 @@ const SettingsEditor: React.FC = () => {
                       <label><span className="mb-2 block text-sm text-slate-600 dark:text-slate-300">Lượt gọi model tối đa</span><input type="number" min="1" max="100" value={automationSettings.maxModelCalls} onChange={event => setAutomationSettings({ ...automationSettings, maxModelCalls: Number(event.target.value) })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></label>
                       <label><span className="mb-2 block text-sm text-slate-600 dark:text-slate-300">Thời gian tối đa (phút)</span><input type="number" min="1" max="1440" value={Math.round(automationSettings.maxDurationSeconds / 60)} onChange={event => setAutomationSettings({ ...automationSettings, maxDurationSeconds: Number(event.target.value) * 60 })} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-slate-900 dark:border-white/20 dark:bg-slate-900 dark:text-white" /></label>
                     </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Giờ chạy UTC (0-23)</label>
-                    <input type="number" min="0" max="23" value={automationSettings.runHourUtc} onChange={event => setAutomationSettings({ ...automationSettings, runHourUtc: Number(event.target.value) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white" required />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">API key {automationSettings.hasApiKey ? '(đã lưu)' : '(chưa có)'}</label>

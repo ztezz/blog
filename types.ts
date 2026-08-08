@@ -86,6 +86,7 @@ export interface AutomationSettings {
   allowedDomains: string[];
   blockedDomains: string[];
   runHourUtc: number;
+  schedule: AutomationSchedule;
   author: string;
   defaultImageUrl: string;
   approvalMode: 'required' | 'quality_gate';
@@ -105,6 +106,11 @@ export interface AutomationSettings {
   maxModelCalls: number;
   maxDurationSeconds: number;
 }
+
+export type AutomationSchedule =
+  | { type: 'weekly'; daysOfWeek: number[]; time: string }
+  | { type: 'interval'; intervalHours: number }
+  | { type: 'once'; runAt: string[] };
 
 export interface AutomationSchemaProbe {
   ok: boolean;
@@ -130,6 +136,7 @@ export interface AutomationRunOptions {
   disableImages?: boolean;
   reuseSources?: boolean;
   parentRunId?: string;
+  scheduledFor?: string;
 }
 
 export interface AutomationTimelineEvent {
@@ -189,6 +196,8 @@ export interface AutomationStatus {
   progress: AutomationProgress | null;
   lastResult: AutomationRunResult | null;
   runId?: string | null;
+  schedule?: AutomationSchedule;
+  nextRunAt?: string | null;
 }
 
 export interface AutomationRunHistory {

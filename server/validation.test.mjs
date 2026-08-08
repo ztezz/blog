@@ -121,4 +121,14 @@ describe('API request schemas', () => {
     expect(schemas.automationRunOptions.parse({ customPrompt: '   ' }).customPrompt).toBe('');
     expect(schemas.automationRunOptions.safeParse({ customPrompt: 'x'.repeat(4001) }).success).toBe(false);
   });
+
+  it('validates flexible AI schedules', () => {
+    const base = schemas.automationSettings.parse({
+      enabled: false, baseUrl: 'http://localhost:20128/v1', apiKey: '', model: '', rssFeeds: [], websites: [],
+      discoveryEnabled: false, runHourUtc: 1, author: 'AI', defaultImageUrl: ''
+    });
+    expect(schemas.automationSettings.parse({ ...base, schedule: { type: 'weekly', daysOfWeek: [5, 1, 1], time: '08:30' } }).schedule).toEqual({ type: 'weekly', daysOfWeek: [1, 5], time: '08:30' });
+    expect(schemas.automationSettings.safeParse({ ...base, schedule: { type: 'interval', intervalHours: 0 } }).success).toBe(false);
+    expect(schemas.automationSettings.safeParse({ ...base, schedule: { type: 'once', runAt: ['2026-02-30T08:00'] } }).success).toBe(false);
+  });
 });

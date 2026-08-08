@@ -18,6 +18,7 @@ const { addHeadingIds, parseStringArray } = require('./post-content');
 const { createAutomation } = require('./automation');
 const { ensureAutomationSettings, serializeAutomationSettings } = require('./automation-settings');
 const { createSitemap } = require('./sitemap');
+const { legacySchedule } = require('./schedule');
 
 const app = express();
 const port = Number(process.env.PORT || 5001);
@@ -383,6 +384,8 @@ const initDb = async () => {
       ['allowed_domains', "TEXT NOT NULL DEFAULT '[]'"],
       ['blocked_domains', "TEXT NOT NULL DEFAULT '[]'"],
       ['run_hour_utc', 'INTEGER NOT NULL DEFAULT 1'],
+      ['schedule_json', 'TEXT'],
+      ['schedule_anchor_at', 'TIMESTAMP'],
       ['author', "VARCHAR(100) NOT NULL DEFAULT 'CosmoGIS AI'"],
       ['default_image_url', "TEXT NOT NULL DEFAULT 'https://picsum.photos/seed/cosmogis-ai/800/400'"],
       ['approval_mode', "TEXT NOT NULL DEFAULT 'required'"],
@@ -631,9 +634,11 @@ app.post('/api/automation/settings', authenticate, authorize('admin'), validateB
        image_model=$22, generated_content_image_count=$23, article_style=$24,
        target_word_count=$25, target_audience=$26, editorial_prompt=$27,
        required_keywords=$28, blocked_keywords=$29, max_sources=$30,
-       max_model_calls=$31, max_duration_seconds=$32, updated_at=CURRENT_TIMESTAMP
+        max_model_calls=$31, max_duration_seconds=$32,
+        schedule_anchor_at=CASE WHEN COALESCE(schedule_json, '')!=$33 THEN CURRENT_TIMESTAMP ELSE schedule_anchor_at END,
+        schedule_json=$33, updated_at=CURRENT_TIMESTAMP
        WHERE id=1`,
-       [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount, settings.imageGenerationEnabled ? 1 : 0, settings.imageModel, settings.generatedContentImageCount, settings.articleStyle, settings.targetWordCount, settings.targetAudience, settings.editorialPrompt, JSON.stringify(settings.requiredKeywords), JSON.stringify(settings.blockedKeywords), settings.maxSources, settings.maxModelCalls, settings.maxDurationSeconds]
+       [settings.enabled ? 1 : 0, settings.baseUrl, settings.clearApiKey ? 1 : 0, settings.apiKey, settings.model, JSON.stringify(settings.rssFeeds), JSON.stringify(settings.websites), settings.discoveryEnabled ? 1 : 0, settings.discoveryProvider, settings.discoveryModel, JSON.stringify(settings.discoveryTopics), JSON.stringify(settings.allowedDomains), JSON.stringify(settings.blockedDomains), settings.runHourUtc, settings.author, settings.defaultImageUrl, settings.approvalMode, settings.qualityThreshold, JSON.stringify(settings.fallbackModels), settings.retryCount, settings.imageGenerationEnabled ? 1 : 0, settings.imageModel, settings.generatedContentImageCount, settings.articleStyle, settings.targetWordCount, settings.targetAudience, settings.editorialPrompt, JSON.stringify(settings.requiredKeywords), JSON.stringify(settings.blockedKeywords), settings.maxSources, settings.maxModelCalls, settings.maxDurationSeconds, JSON.stringify(settings.schedule || legacySchedule(settings.runHourUtc))]
     );
     await automation.reschedule();
     const saved = await ensureAutomationSettings(db);

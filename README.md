@@ -97,6 +97,14 @@ Backend có thể lấy dữ kiện từ danh sách RSS/Atom và website cho ph�
 4. Mở **Cài đặt > Tự động AI** trong trang quản trị, nhập model, nguồn, giờ chạy rồi lưu. Các biến `AI_*` trong `.env` chỉ dùng để seed lần đầu khi database chưa có cấu hình.
 5. Chạy thử bằng nút **Tạo bài AI** trong dashboard quản trị. Khi kết quả đúng, bật lịch tự động trong tab cấu hình AI.
 
+Lịch tự động hỗ trợ ba chế độ và tất cả thời gian trên giao diện được hiểu theo giờ Việt Nam (UTC+7):
+
+- **Theo ngày trong tuần:** chọn một hoặc nhiều ngày cùng giờ và phút bắt đầu.
+- **Lặp lại mỗi N giờ:** giữ nhịp từ lúc cấu hình được lưu, kể cả khi backend khởi động lại; các mốc bị lỡ khi server tắt được bỏ qua.
+- **Ngày giờ cụ thể:** thêm tối đa 50 mốc chạy một lần; mốc đã qua không được chạy bù.
+
+Thời gian trong lịch là lúc AI bắt đầu tìm nguồn và tạo bài, không phải thời điểm công khai chính xác. Bài chỉ được đăng sau khi pipeline hoàn tất và đạt chính sách kiểm duyệt. Nếu một lượt trước vẫn đang chạy khi đến mốc mới, hệ thống không tạo thêm lượt song song. Cấu hình cũ `AI_RUN_HOUR_UTC` được tự chuyển sang lịch hằng ngày có giờ Việt Nam tương đương.
+
 Ví dụ:
 
 ```env

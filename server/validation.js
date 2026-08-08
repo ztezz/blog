@@ -33,6 +33,18 @@ const normalizeList = value => Array.isArray(value)
 const urlList = z.preprocess(normalizeList, z.array(httpUrl).max(50));
 const domainList = z.preprocess(normalizeList, z.array(domain).max(100));
 const normalizeKeyword = value => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+const vietnamDateTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/).refine(value => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [, year, month, day, hour, minute] = match.map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day && date.getUTCHours() === hour && date.getUTCMinutes() === minute;
+}, 'Invalid Vietnam date and time');
+const automationSchedule = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('weekly'), daysOfWeek: z.array(z.number().int().min(0).max(6)).min(1).max(7).transform(days => [...new Set(days)].sort()), time: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/) }),
+  z.object({ type: z.literal('interval'), intervalHours: z.number().int().min(1).max(168) }),
+  z.object({ type: z.literal('once'), runAt: z.array(vietnamDateTime).min(1).max(50).transform(values => [...new Set(values)].sort()) })
+]);
 
 const navItem = z.lazy(() => z.object({
   id,
@@ -60,6 +72,7 @@ const schemas = {
     allowedDomains: domainList.optional().default([]),
     blockedDomains: domainList.optional().default([]),
     runHourUtc: z.number().int().min(0).max(23),
+    schedule: automationSchedule.optional(),
     author: z.string().trim().min(1).max(100),
     defaultImageUrl: optionalMediaUrl,
     approvalMode: z.enum(['required', 'quality_gate']).optional().default('required'),
@@ -98,6 +111,7 @@ const schemas = {
     disableImages: z.boolean().optional().default(false),
     reuseSources: z.boolean().optional().default(false),
     parentRunId: id.optional()
+    ,scheduledFor: z.iso.datetime().optional()
   }).optional().default({ disableImages: false, reuseSources: false }),
   login: z.object({
     username: z.string().trim().min(1).max(50),

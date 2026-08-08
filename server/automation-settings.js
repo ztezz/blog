@@ -2,6 +2,7 @@ const splitList = values => values
   .flatMap(item => typeof item === 'string' ? item.split(/[,\r\n]+/) : [])
   .map(item => item.trim())
   .filter(Boolean);
+const { parseSchedule } = require('./schedule');
 
 const parseJsonArray = (value, splitItems = false) => {
   try {
@@ -56,6 +57,7 @@ const serializeAutomationSettings = settings => ({
   allowedDomains: parseJsonArray(settings.allowed_domains, true),
   blockedDomains: parseJsonArray(settings.blocked_domains, true),
   runHourUtc: Number(settings.run_hour_utc ?? 1),
+  schedule: parseSchedule(settings.schedule_json, settings.run_hour_utc),
   author: settings.author || 'CosmoGIS AI',
   defaultImageUrl: settings.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400',
   approvalMode: settings.approval_mode === 'quality_gate' ? 'quality_gate' : 'required',

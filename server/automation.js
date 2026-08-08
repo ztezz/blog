@@ -11,6 +11,7 @@ const { z } = require('zod');
 const { ensureAutomationSettings, parseJsonArray } = require('./automation-settings');
 const { detectImageType } = require('./media');
 const { addHeadingIds, insertContextualImages } = require('./post-content');
+const { getNextOccurrence, legacySchedule, parseSchedule } = require('./schedule');
 
 const USER_AGENT = 'CosmoGISBot/1.0 (+content research; configured sources only)';
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -398,6 +399,8 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     allowedDomains: [],
     blockedDomains: [],
     runHourUtc: Number(env.AI_RUN_HOUR_UTC || 1),
+    schedule: legacySchedule(Number(env.AI_RUN_HOUR_UTC || 1)),
+    scheduleAnchorAt: new Date().toISOString(),
     author: env.AI_AUTHOR || 'CosmoGIS AI',
     defaultImageUrl: env.AI_DEFAULT_IMAGE_URL || 'https://picsum.photos/seed/cosmogis-ai/800/400',
     approvalMode: 'required',
@@ -438,6 +441,8 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
       allowedDomains: parseJsonArray(row.allowed_domains, true),
       blockedDomains: parseJsonArray(row.blocked_domains, true),
       runHourUtc: Number(row.run_hour_utc),
+      schedule: parseSchedule(row.schedule_json, row.run_hour_utc),
+      scheduleAnchorAt: row.schedule_anchor_at || row.updated_at || new Date().toISOString(),
       author: row.author || 'CosmoGIS AI',
       defaultImageUrl: row.default_image_url || 'https://picsum.photos/seed/cosmogis-ai/800/400',
       approvalMode: row.approval_mode === 'quality_gate' ? 'quality_gate' : 'required',
@@ -462,7 +467,7 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
   const validateConfig = config => {
     if (!config.model) throw new Error('AI_MODEL is required');
     if (config.rssFeeds.length + config.websites.length === 0 && !config.discoveryEnabled) throw new Error('At least one source or topic discovery is required');
-    if (!Number.isInteger(config.runHourUtc) || config.runHourUtc < 0 || config.runHourUtc > 23) throw new Error('AI_RUN_HOUR_UTC must be an integer from 0 to 23');
+    if (!config.schedule || !['weekly', 'interval', 'once'].includes(config.schedule.type)) throw new Error('A valid AI schedule is required');
     if (!Number.isInteger(config.maxSources) || config.maxSources < 1) throw automationError('INVALID_BUDGET', 'maxSources must be a positive integer');
     if (!Number.isInteger(config.maxModelCalls) || config.maxModelCalls < 1) throw automationError('INVALID_BUDGET', 'maxModelCalls must be a positive integer');
     if (!Number.isInteger(config.maxDurationSeconds) || config.maxDurationSeconds < 30) throw automationError('INVALID_BUDGET', 'maxDurationSeconds must be at least 30');
@@ -1085,14 +1090,16 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
     validateConfig(config);
     const scheduleNext = () => {
       const now = new Date();
-      const next = new Date(now);
-      next.setUTCHours(config.runHourUtc, 0, 0, 0);
-      if (next <= now) next.setUTCDate(next.getUTCDate() + 1);
+      const next = getNextOccurrence(config.schedule, now, config.scheduleAnchorAt);
+      if (!next) return;
+      const delay = next.getTime() - now.getTime();
+      const maxDelay = 2_147_000_000;
       timer = setTimeout(async () => {
-        try { await run('scheduled'); } catch (error) { console.error('[Automation] Daily run failed:', error); }
         timer = null;
+        if (delay > maxDelay) return scheduleNext();
+        try { await run('scheduled', { scheduledFor: next.toISOString() }); } catch (error) { console.error('[Automation] Scheduled run failed:', error); }
         scheduleNext();
-      }, next.getTime() - now.getTime());
+      }, Math.min(delay, maxDelay));
       timer.unref?.();
     };
     scheduleNext();
@@ -1166,7 +1173,8 @@ const createAutomation = ({ db, env = process.env, uploadDir = path.join(__dirna
         updatedAt: persistedRunning.started_at,
         stale: true
       } : null;
-      return { enabled: config.enabled, running: running || Boolean(persistedRunning), progress: progress || persistedProgress, lastResult: persistedResult, sourceCount: config.rssFeeds.length + config.websites.length, discoveryEnabled: config.discoveryEnabled, runHourUtc: config.runHourUtc, model: config.model || null, runId: activeRunId || persistedRunning?.id || null };
+      const nextRunAt = config.enabled ? getNextOccurrence(config.schedule, new Date(), config.scheduleAnchorAt)?.toISOString() || null : null;
+      return { enabled: config.enabled, running: running || Boolean(persistedRunning), progress: progress || persistedProgress, lastResult: persistedResult, sourceCount: config.rssFeeds.length + config.websites.length, discoveryEnabled: config.discoveryEnabled, runHourUtc: config.runHourUtc, schedule: config.schedule, nextRunAt, model: config.model || null, runId: activeRunId || persistedRunning?.id || null };
     }
   };
 };

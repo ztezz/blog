@@ -44,6 +44,7 @@ describe('automation settings recovery', () => {
       allowed_domains: '[]',
       blocked_domains: '[]',
       run_hour_utc: 1,
+      schedule_json: '{broken',
       author: 'AI',
       default_image_url: '/image.jpg',
       article_style: 'tutorial',
@@ -70,7 +71,12 @@ describe('automation settings recovery', () => {
       maxSources: 5,
       maxModelCalls: 12,
       maxDurationSeconds: 900
+      ,schedule: { type: 'weekly', daysOfWeek: [0, 1, 2, 3, 4, 5, 6], time: '08:00' }
     });
+  });
+
+  it('serializes a saved flexible schedule', () => {
+    expect(serializeAutomationSettings({ run_hour_utc: 1, schedule_json: '{"type":"interval","intervalHours":12}' }).schedule).toEqual({ type: 'interval', intervalHours: 12 });
   });
 
   it('splits legacy comma-separated URLs stored as a single array item', () => {
