@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from '../utils/router';
-import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft, Sparkles } from 'lucide-react';
+import { Save, ArrowLeft, Layout, Type, Link as LinkIcon, Globe, Plus, Trash2, ArrowUp, ArrowDown, CornerDownRight, GripVertical, Upload, Image as ImageIcon, FileText, AlignLeft, Sparkles, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { getAutomationSettings, getSettings, saveAutomationSettings, saveSettings, isAuthenticated, uploadImage } from '../utils/storage';
 import { AutomationSettings, SiteSettings, NavItem } from '../types';
 import { DEFAULT_ABOUT_CONTENT, DEFAULT_CONTACT_CONTENT } from '../constants';
@@ -14,7 +14,11 @@ const SettingsEditor: React.FC = () => {
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [activeTab, setActiveTab] = useState<'general' | 'menu' | 'pages' | 'automation'>('general');
   const [automationSettings, setAutomationSettings] = useState<AutomationSettings | null>(null);
+  const [rssFeedsText, setRssFeedsText] = useState('');
+  const [websitesText, setWebsitesText] = useState('');
   const [automationError, setAutomationError] = useState('');
+  const [notification, setNotification] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
   
   // State for Navigation Builder
   const [editingItem, setEditingItem] = useState<{parentId: string | null, item: NavItem} | null>(null);
@@ -35,8 +39,18 @@ const SettingsEditor: React.FC = () => {
       setSettings(s);
     };
     load();
-    getAutomationSettings().then(setAutomationSettings).catch(error => console.error('Failed to load AI settings:', error));
+    getAutomationSettings().then(loadedSettings => {
+      setAutomationSettings(loadedSettings);
+      setRssFeedsText(loadedSettings.rssFeeds.join('\n'));
+      setWebsitesText(loadedSettings.websites.join('\n'));
+    }).catch(error => console.error('Failed to load AI settings:', error));
   }, [navigate]);
+
+  useEffect(() => {
+    if (!notification) return;
+    const timeout = window.setTimeout(() => setNotification(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [notification]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (!settings) return;
@@ -74,7 +88,7 @@ const SettingsEditor: React.FC = () => {
         [isLogo ? 'logoUrl' : 'faviconUrl']: url
       });
     } catch (error) {
-      alert(`Lỗi upload ${type}: ` + error);
+      setNotification({ type: 'error', message: `Lỗi upload ${type}: ${error}` });
     } finally {
       if (isLogo) setUploadingLogo(false);
       else setUploadingFavicon(false);
@@ -117,17 +131,21 @@ const SettingsEditor: React.FC = () => {
 
   const deleteItem = (itemId: string) => {
     if (!settings) return;
-    if (window.confirm('Xóa mục này?')) {
-      let newNav = settings.navigation.filter(item => item.id !== itemId);
-      if (newNav.length === settings.navigation.length) {
-         newNav = settings.navigation.map(parent => ({
-           ...parent,
-           children: parent.children ? parent.children.filter(child => child.id !== itemId) : []
-         }));
-      }
-      setSettings({ ...settings, navigation: newNav });
-      if (editingItem?.item.id === itemId) setEditingItem(null);
+    setPendingDeleteItemId(itemId);
+  };
+
+  const confirmDeleteItem = () => {
+    if (!settings || !pendingDeleteItemId) return;
+    let newNav = settings.navigation.filter(item => item.id !== pendingDeleteItemId);
+    if (newNav.length === settings.navigation.length) {
+      newNav = settings.navigation.map(parent => ({
+        ...parent,
+        children: parent.children ? parent.children.filter(child => child.id !== pendingDeleteItemId) : []
+      }));
     }
+    setSettings({ ...settings, navigation: newNav });
+    if (editingItem?.item.id === pendingDeleteItemId) setEditingItem(null);
+    setPendingDeleteItemId(null);
   };
 
   const moveItem = (index: number, direction: 'up' | 'down', parentId: string | null) => {
@@ -232,16 +250,22 @@ const SettingsEditor: React.FC = () => {
     setAutomationError('');
     try {
       if (activeTab === 'automation' && automationSettings) {
-        const saved = await saveAutomationSettings(automationSettings);
+        const saved = await saveAutomationSettings({
+          ...automationSettings,
+          rssFeeds: rssFeedsText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean),
+          websites: websitesText.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean)
+        });
         setAutomationSettings(saved);
+        setRssFeedsText(saved.rssFeeds.join('\n'));
+        setWebsitesText(saved.websites.join('\n'));
       } else if (settings) {
       await saveSettings(settings);
       }
-      alert('Đã lưu cài đặt thành công!');
+      setNotification({ type: 'success', message: 'Đã lưu cài đặt thành công!' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Không thể lưu cài đặt';
       if (activeTab === 'automation') setAutomationError(message);
-      else alert(message);
+      else setNotification({ type: 'error', message });
     } finally {
       setLoading(false);
     }
@@ -251,6 +275,36 @@ const SettingsEditor: React.FC = () => {
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+      {notification && (
+        <div className={`fixed right-4 top-4 z-50 flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 shadow-xl backdrop-blur sm:right-6 sm:top-6 ${notification.type === 'success' ? 'border-emerald-300 bg-emerald-50/95 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/95 dark:text-emerald-200' : 'border-red-300 bg-red-50/95 text-red-800 dark:border-red-500/40 dark:bg-red-950/95 dark:text-red-200'}`} role="status" aria-live="polite">
+          {notification.type === 'success' ? <CheckCircle2 className="mt-0.5 shrink-0" size={20} /> : <AlertCircle className="mt-0.5 shrink-0" size={20} />}
+          <span className="text-sm font-medium">{notification.message}</span>
+          <button type="button" onClick={() => setNotification(null)} className="ml-1 shrink-0 rounded p-0.5 opacity-70 transition hover:opacity-100" aria-label="Đóng thông báo">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {pendingDeleteItemId && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="presentation" onMouseDown={() => setPendingDeleteItemId(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-white/10 dark:bg-slate-800" role="dialog" aria-modal="true" aria-labelledby="delete-menu-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="mb-5 flex items-start gap-4">
+              <div className="rounded-full bg-red-100 p-3 text-red-600 dark:bg-red-500/15 dark:text-red-400">
+                <Trash2 size={22} />
+              </div>
+              <div>
+                <h2 id="delete-menu-title" className="text-lg font-bold text-slate-900 dark:text-white">Xóa mục menu?</h2>
+                <p className="mt-1 text-sm text-slate-600 dark:text-gray-300">Mục này sẽ bị xóa khỏi menu điều hướng. Thay đổi chỉ có hiệu lực sau khi bạn lưu cài đặt.</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setPendingDeleteItemId(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 dark:border-white/20 dark:text-gray-200 dark:hover:bg-white/10">Hủy</button>
+              <button type="button" onClick={confirmDeleteItem} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700">Xóa mục</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center">
@@ -526,11 +580,11 @@ const SettingsEditor: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">RSS/Atom, phân cách bằng xuống dòng hoặc dấu phẩy</label>
-                    <textarea rows={8} value={automationSettings.rssFeeds.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, rssFeeds: event.target.value.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
+                    <textarea rows={8} value={rssFeedsText} onChange={event => setRssFeedsText(event.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm text-slate-600 dark:text-gray-400 mb-2">Website, phân cách bằng xuống dòng hoặc dấu phẩy</label>
-                    <textarea rows={8} value={automationSettings.websites.join('\n')} onChange={event => setAutomationSettings({ ...automationSettings, websites: event.target.value.split(/[,\r\n]+/).map(value => value.trim()).filter(Boolean) })} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
+                    <textarea rows={8} value={websitesText} onChange={event => setWebsitesText(event.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-white/20 rounded-lg px-4 py-3 text-slate-900 dark:text-white font-mono text-sm" />
                   </div>
                   <div className="md:col-span-2 border-t border-slate-200 dark:border-white/10 pt-6">
                     <label className="flex items-center gap-3 text-slate-700 dark:text-gray-200">
