@@ -4,5 +4,7 @@ node_modules
 !.env.example
 dist
 server/data/
+server/uploads/
+server.log
 *.db-shm
 *.db-wal

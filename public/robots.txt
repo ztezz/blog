@@ -3,3 +3,5 @@ Allow: /
 Disallow: /admin
 Disallow: /admin/
 Disallow: /api/
+
+Sitemap: https://gisvn.space/sitemap.xml
