@@ -41,6 +41,73 @@ body {
   margin: 0;
 }
 
+.hero-terrain__grid {
+  animation: hero-grid-drift 18s linear infinite;
+}
+
+.hero-terrain__contours {
+  transform-origin: center;
+  animation: hero-contours-drift 14s ease-in-out infinite alternate;
+}
+
+.hero-terrain__route {
+  stroke-dashoffset: 0;
+  animation: hero-route-travel 7s linear infinite;
+}
+
+.hero-terrain__scanner {
+  position: absolute;
+  top: -25%;
+  bottom: -25%;
+  left: -45%;
+  width: 24%;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), rgba(125, 211, 252, 0.14), transparent);
+  filter: blur(10px);
+  mix-blend-mode: soft-light;
+  animation: hero-scanner-sweep 9s ease-in-out infinite;
+}
+
+.dark .hero-terrain__scanner {
+  background: linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.12), rgba(34, 211, 238, 0.2), transparent);
+  mix-blend-mode: screen;
+}
+
+.hero-terrain__marker {
+  z-index: 2;
+  animation: hero-marker-pulse 3.2s ease-out infinite;
+}
+
+.hero-terrain__marker--end {
+  animation-delay: -1.6s;
+}
+
+@keyframes hero-grid-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(36px, 36px, 0); }
+}
+
+@keyframes hero-contours-drift {
+  from { transform: translate3d(-1.2%, 1%, 0) scale(1.005); }
+  to { transform: translate3d(1.4%, -1.2%, 0) scale(1.018); }
+}
+
+@keyframes hero-route-travel {
+  to { stroke-dashoffset: -52; }
+}
+
+@keyframes hero-scanner-sweep {
+  0%, 12% { transform: translate3d(0, 0, 0) skewX(-18deg); opacity: 0; }
+  22% { opacity: 0.85; }
+  62% { opacity: 0.55; }
+  76%, 100% { transform: translate3d(690%, 0, 0) skewX(-18deg); opacity: 0; }
+}
+
+@keyframes hero-marker-pulse {
+  0%, 100% { transform: scale(0.9); filter: brightness(1); }
+  45% { transform: scale(1.24); filter: brightness(1.25); }
+}
+
 .day-atlas {
   background:
     radial-gradient(ellipse at 82% 4%, rgba(255, 255, 255, 0.95) 0%, transparent 34%),

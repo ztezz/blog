@@ -125,21 +125,22 @@ const Home: React.FC = () => {
 
           <div className="relative mx-auto w-full max-w-[590px] lg:rotate-[1deg]">
             <div className="absolute -inset-x-4 bottom-1 top-8 -rotate-2 rounded-[2.25rem] border border-sky-300/50 bg-white/35 shadow-xl shadow-sky-900/10 backdrop-blur-sm dark:border-cyan-300/10 dark:bg-white/[0.025]" />
-            <div className="relative min-h-[470px] overflow-hidden rounded-[1.75rem] border border-white/90 bg-[#dff3f5] shadow-2xl shadow-sky-900/20 dark:border-white/10 dark:bg-[#071925] dark:shadow-black/35 sm:min-h-[520px]">
+            <div className="hero-terrain relative min-h-[470px] overflow-hidden rounded-[1.75rem] border border-white/90 bg-[#dff3f5] shadow-2xl shadow-sky-900/20 dark:border-white/10 dark:bg-[#071925] dark:shadow-black/35 sm:min-h-[520px]">
               <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.68),transparent_42%),radial-gradient(circle_at_82%_12%,rgba(34,211,238,0.3),transparent_32%)] dark:bg-[linear-gradient(120deg,rgba(14,116,144,0.15),transparent_42%),radial-gradient(circle_at_82%_12%,rgba(34,211,238,0.12),transparent_34%)]" />
-              <div className="absolute inset-0 opacity-30 dark:opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(14,116,144,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(14,116,144,0.2) 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
+              <div className="hero-terrain__grid absolute -inset-10 opacity-30 dark:opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(14,116,144,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(14,116,144,0.2) 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
+              <div className="hero-terrain__scanner" />
 
-              <svg className="absolute inset-0 h-full w-full text-sky-700/30 dark:text-cyan-200/20" viewBox="0 0 590 520" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+              <svg className="hero-terrain__contours absolute -inset-[2%] h-[104%] w-[104%] text-sky-700/30 dark:text-cyan-200/20" viewBox="0 0 590 520" fill="none" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
                 <path d="M-30 396c70-92 155-71 212-139 48-58 18-119 86-158 76-44 139 21 223-20 48-23 82-66 116-125" stroke="currentColor" />
                 <path d="M-18 430c81-87 164-65 226-134 53-58 25-112 90-149 73-41 137 17 216-22 45-22 77-60 105-109" stroke="currentColor" />
                 <path d="M8 463c86-77 166-55 231-120 54-54 34-103 93-137 67-39 128 11 200-22 39-18 69-49 94-88" stroke="currentColor" />
                 <path d="M55 492c84-65 155-45 219-102 51-46 40-89 91-119 58-34 112 5 176-22 34-14 61-38 84-69" stroke="currentColor" />
                 <path d="M121 517c74-52 135-33 193-81 45-38 43-75 86-101 49-29 96 1 151-20 29-11 53-29 74-54" stroke="currentColor" />
-                <path d="M-18 109 618 457" stroke="currentColor" strokeDasharray="5 8" />
+                <path className="hero-terrain__route" d="M-18 109 618 457" stroke="currentColor" strokeDasharray="5 8" />
               </svg>
 
-              <div className="absolute left-[13%] top-[71%] h-3 w-3 rounded-full border-[3px] border-white bg-sky-600 shadow-[0_0_0_6px_rgba(2,132,199,0.16)] dark:border-[#071925] dark:bg-cyan-300 dark:shadow-[0_0_0_6px_rgba(103,232,249,0.14)]" />
-              <div className="absolute right-[14%] top-[24%] h-3 w-3 rounded-full border-[3px] border-white bg-violet-600 shadow-[0_0_0_6px_rgba(124,58,237,0.14)] dark:border-[#071925] dark:bg-violet-300" />
+              <div className="hero-terrain__marker hero-terrain__marker--start absolute left-[13%] top-[71%] h-3 w-3 rounded-full border-[3px] border-white bg-sky-600 shadow-[0_0_0_6px_rgba(2,132,199,0.16)] dark:border-[#071925] dark:bg-cyan-300 dark:shadow-[0_0_0_6px_rgba(103,232,249,0.14)]" />
+              <div className="hero-terrain__marker hero-terrain__marker--end absolute right-[14%] top-[24%] h-3 w-3 rounded-full border-[3px] border-white bg-violet-600 shadow-[0_0_0_6px_rgba(124,58,237,0.14)] dark:border-[#071925] dark:bg-violet-300" />
 
               <div className="absolute left-5 top-5 flex items-center gap-2 rounded-full border border-sky-900/10 bg-white/70 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-sky-900 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-slate-950/45 dark:text-cyan-100 sm:left-7 sm:top-7">
                 <Crosshair size={13} /> Jezero / 18.4°N
