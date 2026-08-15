@@ -41,6 +41,26 @@ body {
   margin: 0;
 }
 
+:where(a, button, input, textarea, select):focus-visible {
+  outline-offset: 3px;
+}
+
+.hero-enter__item,
+.hero-map-enter {
+  animation: hero-reveal 650ms both;
+}
+
+.hero-enter__item:nth-child(2) { animation-delay: 70ms; }
+.hero-enter__item:nth-child(3) { animation-delay: 130ms; }
+.hero-enter__item:nth-child(4) { animation-delay: 190ms; }
+.hero-enter__item:nth-child(5) { animation-delay: 250ms; }
+.hero-map-enter { animation-delay: 140ms; }
+
+@keyframes hero-reveal {
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
 .hero-terrain__grid {
   animation: hero-grid-drift 18s linear infinite;
 }
@@ -75,10 +95,13 @@ body {
 
 .hero-terrain__marker {
   z-index: 2;
+}
+
+.hero-terrain__marker > span:first-child {
   animation: hero-marker-pulse 3.2s ease-out infinite;
 }
 
-.hero-terrain__marker--end {
+.hero-terrain__marker--end > span:first-child {
   animation-delay: -1.6s;
 }
 
@@ -395,6 +418,14 @@ body {
 
   .night-atlas__meridian {
     right: -65%;
+  }
+}
+
+@media (hover: none), (pointer: coarse) {
+  .hero-terrain__scanner,
+  .hero-terrain__grid,
+  .hero-terrain__contours {
+    animation: none;
   }
 }
 
