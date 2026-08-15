@@ -5,8 +5,6 @@ interface Star {
   y: number;
   radius: number;
   opacity: number;
-  phase: number;
-  pulse: number;
   tint: 'white' | 'cyan';
 }
 
@@ -18,11 +16,9 @@ const StarBackground: React.FC = () => {
     const context = canvas?.getContext('2d');
     if (!canvas || !context) return;
 
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let width = window.innerWidth;
     let height = window.innerHeight;
     let stars: Star[] = [];
-    let animationFrameId = 0;
 
     const createStars = () => {
       const count = Math.min(180, Math.max(80, Math.round((width * height) / 11000)));
@@ -31,8 +27,6 @@ const StarBackground: React.FC = () => {
         y: Math.random() * height,
         radius: index % 23 === 0 ? Math.random() * 1.1 + 1 : Math.random() * 0.75 + 0.25,
         opacity: Math.random() * 0.46 + 0.18,
-        phase: Math.random() * Math.PI * 2,
-        pulse: Math.random() * 0.35 + 0.12,
         tint: index % 11 === 0 ? 'cyan' : 'white'
       }));
     };
@@ -47,32 +41,27 @@ const StarBackground: React.FC = () => {
       canvas.style.height = `${height}px`;
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       createStars();
+      draw();
     };
 
-    const draw = (timestamp = 0) => {
+    const draw = () => {
       context.clearRect(0, 0, width, height);
 
       stars.forEach(star => {
-        const twinkle = prefersReducedMotion ? 0 : Math.sin(timestamp * 0.00045 + star.phase) * star.pulse;
-        const alpha = Math.max(0.08, star.opacity + twinkle);
         context.beginPath();
         context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
         context.fillStyle = star.tint === 'cyan'
-          ? `rgba(165, 243, 252, ${alpha})`
-          : `rgba(226, 232, 240, ${alpha})`;
+          ? `rgba(165, 243, 252, ${star.opacity})`
+          : `rgba(226, 232, 240, ${star.opacity})`;
         context.fill();
       });
-
-      if (!prefersReducedMotion) animationFrameId = requestAnimationFrame(draw);
     };
 
     resize();
-    draw();
     window.addEventListener('resize', resize);
 
     return () => {
       window.removeEventListener('resize', resize);
-      cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
