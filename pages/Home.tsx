@@ -8,6 +8,7 @@ import {
   Clock3,
   Crosshair,
   Database,
+  Eye,
   Globe,
   Orbit,
   RadioTower,
@@ -217,7 +218,7 @@ const Home: React.FC = () => {
                     <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-cyan-200 backdrop-blur">Mới nhất · {latestPost.category}</span>
                     <h3 className="mt-4 max-w-2xl font-display text-3xl font-bold leading-tight text-white sm:text-4xl">{latestPost.title}</h3>
                     <p className="mt-4 max-w-2xl line-clamp-2 text-sm leading-6 text-slate-200 sm:text-base">{latestPost.excerpt}</p>
-                    <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-slate-300"><span className="flex items-center gap-1.5"><CalendarDays size={14} /> {formatDate(latestPost.date)}</span><span className="flex items-center gap-1.5"><Clock3 size={14} /> {latestPost.readTime}</span><span className="ml-auto flex items-center font-bold text-cyan-200">Đọc bài <ArrowUpRight className="ml-1" size={16} /></span></div>
+                    <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-slate-300"><span className="flex items-center gap-1.5"><CalendarDays size={14} /> {formatDate(latestPost.date)}</span><span className="flex items-center gap-1.5"><Clock3 size={14} /> {latestPost.readTime}</span><span className="flex items-center gap-1.5"><Eye size={14} /> {(latestPost.views || 0).toLocaleString('vi-VN')}</span><span className="ml-auto flex items-center font-bold text-cyan-200">Đọc bài <ArrowUpRight className="ml-1" size={16} /></span></div>
                   </div>
                 </Link>
               )}

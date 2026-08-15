@@ -233,6 +233,7 @@ const initDb = async () => {
         tags TEXT,
         image_url TEXT,
         read_time VARCHAR(50),
+        views INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -269,6 +270,7 @@ const initDb = async () => {
       ['keywords', "TEXT NOT NULL DEFAULT '[]'"],
       ['image_alt', 'VARCHAR(255)'],
       ['image_caption', 'TEXT'],
+      ['views', 'INTEGER NOT NULL DEFAULT 0'],
       ['reviewed_at', 'TIMESTAMP'],
       ['reviewed_by', 'VARCHAR(50)']
     ];
@@ -876,6 +878,7 @@ app.get('/api/posts', async (req, res) => {
       tags: JSON.parse(p.tags || '[]'),
       imageUrl: fixUrl(p.image_url),
       readTime: p.read_time,
+      views: Number(p.views || 0),
       seoTitle: p.seo_title || p.title,
       metaDescription: p.meta_description || p.excerpt,
       keywords: parseStringArray(p.keywords),
@@ -891,6 +894,8 @@ app.get('/api/posts', async (req, res) => {
 
 app.get('/api/posts/:id', validateParams(schemas.idParam), async (req, res) => {
   try {
+    const increment = await db.query("UPDATE posts SET views=COALESCE(views, 0)+1 WHERE id=$1 AND status='published'", [req.params.id]);
+    if (increment.rowCount === 0) return res.status(404).json({ error: 'Post not found' });
     const result = await db.query("SELECT * FROM posts WHERE id = $1 AND status='published'", [req.params.id]);
     if (result.rows.length > 0) {
       const p = result.rows[0];
@@ -920,6 +925,7 @@ app.get('/api/posts/:id', validateParams(schemas.idParam), async (req, res) => {
         tags: JSON.parse(p.tags || '[]'),
         imageUrl: fixUrl(p.image_url),
         readTime: p.read_time,
+        views: Number(p.views || 0),
         seoTitle: p.seo_title || p.title,
         metaDescription: p.meta_description || p.excerpt,
         keywords: parseStringArray(p.keywords),

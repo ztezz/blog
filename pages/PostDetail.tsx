@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from '../utils/router';
-import { ArrowLeft, ArrowUp, Calendar, Check, Clock, Share2, Tag } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Calendar, Check, Clock, Eye, Share2, Tag } from 'lucide-react';
 import { getPostById } from '../utils/storage';
 import { sanitizeHtml } from '../utils/sanitizeHtml';
 import { getCanonicalUrl } from '../utils/seo';
@@ -104,7 +104,7 @@ const PostDetail: React.FC = () => {
           <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-sky-700 dark:border-cyan-300/20 dark:bg-cyan-300/5 dark:text-cyan-300">{post.category}</span>
           <h1 className="mt-6 font-display text-4xl font-bold leading-[1.06] tracking-[-0.04em] text-slate-950 sm:text-5xl lg:text-6xl dark:text-white">{post.title}</h1>
           <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-600 dark:text-slate-300">{post.excerpt}</p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-slate-500 dark:text-slate-400"><span className="font-bold text-slate-900 dark:text-white">{post.author}</span><span className="flex items-center gap-2"><Calendar size={15} />{formatDate(post.date)}</span><span className="flex items-center gap-2"><Clock size={15} />{post.readTime}</span><button type="button" onClick={handleShare} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 font-bold transition hover:border-sky-400 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:hover:text-cyan-300"><Share2 size={15} />{shareStatus === 'copied' ? <><Check size={14} /> Đã sao chép</> : 'Chia sẻ'}</button></div>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-slate-500 dark:text-slate-400"><span className="font-bold text-slate-900 dark:text-white">{post.author}</span><span className="flex items-center gap-2"><Calendar size={15} />{formatDate(post.date)}</span><span className="flex items-center gap-2"><Clock size={15} />{post.readTime}</span><span className="flex items-center gap-2"><Eye size={15} />{(post.views || 0).toLocaleString('vi-VN')} lượt xem</span><button type="button" onClick={handleShare} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1.5 font-bold transition hover:border-sky-400 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-white/10 dark:hover:text-cyan-300"><Share2 size={15} />{shareStatus === 'copied' ? <><Check size={14} /> Đã sao chép</> : 'Chia sẻ'}</button></div>
           <p className="mt-3 min-h-5 text-xs text-rose-600 dark:text-rose-300" aria-live="polite">{shareStatus === 'error' ? 'Không thể chia sẻ. Hãy sao chép địa chỉ trên trình duyệt.' : ''}</p>
         </header>
 

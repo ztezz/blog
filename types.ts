@@ -15,6 +15,7 @@ export interface BlogPost {
   tags: string[];
   imageUrl: string;
   readTime: string;
+  views?: number;
   status?: 'draft' | 'published' | 'rejected';
   qualityScore?: number | null;
   qualityReport?: {
