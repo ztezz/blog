@@ -1,53 +1,24 @@
-
 import React from 'react';
-import { Rocket, Cloud, Satellite } from 'lucide-react';
 
 const SkyBackground: React.FC = () => {
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-gradient-to-b from-sky-300 via-sky-100 to-white transition-opacity duration-1000">
-      
-      {/* Sun / Light Source Glow */}
-      <div className="absolute -top-20 -right-20 w-[500px] h-[500px] bg-yellow-200/40 rounded-full blur-[100px]"></div>
+    <div className="day-atlas fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
+      <div className="day-atlas__light" />
+      <div className="day-atlas__wash day-atlas__wash--west" />
+      <div className="day-atlas__wash day-atlas__wash--east" />
+      <div className="day-atlas__grid" />
 
-      {/* CLOUDS */}
-      {/* Cloud 1 - Slow & Big */}
-      <div className="absolute top-[10%] left-[-20%] animate-cloud-move opacity-60" style={{ animationDuration: '80s' }}>
-         <Cloud size={200} className="text-white fill-white blur-sm" />
-      </div>
+      <svg className="day-atlas__contours" viewBox="0 0 900 620" fill="none" preserveAspectRatio="xMinYMax slice">
+        <path d="M-42 128C91 52 235 62 324 142c80 72 64 167 155 216 102 54 214-17 328 49 67 39 101 102 116 179" />
+        <path d="M-55 184c119-70 247-61 324 5 70 60 57 140 137 184 95 51 198-4 297 49 57 31 92 82 114 149" />
+        <path d="M-61 245c101-60 207-54 272-1 61 50 52 117 118 155 82 47 171 6 256 48 46 22 80 64 105 120" />
+        <path d="M-65 309c82-51 169-47 224-5 51 40 47 96 100 128 68 41 141 13 211 45 37 17 67 48 91 93" />
+        <path d="M-68 374c65-43 134-41 178-8 42 32 42 77 84 104 54 35 113 17 169 41 30 13 55 36 76 68" />
+      </svg>
 
-      {/* Cloud 2 - Medium */}
-      <div className="absolute top-[30%] left-[-10%] animate-cloud-move opacity-40" style={{ animationDuration: '60s', animationDelay: '10s' }}>
-         <Cloud size={150} className="text-white fill-white" />
-      </div>
-
-      {/* Cloud 3 - Fast & Small */}
-      <div className="absolute top-[60%] left-[-15%] animate-cloud-move opacity-30" style={{ animationDuration: '45s', animationDelay: '5s' }}>
-         <Cloud size={100} className="text-sky-50 fill-sky-50" />
-      </div>
-      
-       {/* Cloud 4 - Very High */}
-      <div className="absolute top-[5%] left-[-20%] animate-cloud-move opacity-50" style={{ animationDuration: '95s', animationDelay: '30s' }}>
-         <Cloud size={180} className="text-white fill-white blur-md" />
-      </div>
-
-      {/* MOVING OBJECTS */}
-      
-      {/* Rocket - Positioned as background element */}
-      <div className="absolute top-28 right-[15%] md:right-[10%] animate-float z-[-1] opacity-70">
-        <div className="relative transform -rotate-45"> {/* Rotate -45deg to point straight UP */}
-            <Rocket size={56} className="text-sky-600 fill-white" />
-            {/* Rocket Trail - Vertical Down */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 w-3 h-16 bg-gradient-to-b from-orange-400 via-yellow-300 to-transparent blur-[2px] rounded-full"></div>
-            {/* Engine Glow */}
-            <div className="absolute top-[80%] left-1/2 -translate-x-1/2 w-6 h-6 bg-orange-500/50 blur-md rounded-full"></div>
-        </div>
-      </div>
-
-      {/* Satellite (Floating) */}
-      <div className="absolute top-1/4 left-1/3 animate-float opacity-60" style={{ animationDelay: '2s' }}>
-        <Satellite size={40} className="text-sky-800" />
-      </div>
-
+      <div className="day-atlas__coordinate day-atlas__coordinate--one" />
+      <div className="day-atlas__coordinate day-atlas__coordinate--two" />
+      <div className="day-atlas__grain" />
     </div>
   );
 };
