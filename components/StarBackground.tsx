@@ -1,236 +1,100 @@
-
 import React, { useEffect, useRef } from 'react';
-
-interface StarBackgroundProps {
-  starCount?: number;
-  speedFactor?: number;
-  starSize?: number;
-  connectionDistance?: number;
-  connectionOpacity?: number;
-  showSolarSystem?: boolean; 
-}
 
 interface Star {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
-  size: number;
+  radius: number;
   opacity: number;
-  twinkleSpeed: number;
+  phase: number;
+  pulse: number;
+  tint: 'white' | 'cyan';
 }
 
-interface Planet {
-  orbitRadius: number; 
-  angle: number;       
-  speed: number;       
-  size: number;
-  color: string;
-}
-
-const StarBackground: React.FC<StarBackgroundProps> = ({
-  starCount = 150, // Tăng số lượng sao
-  speedFactor = 0.3,
-  starSize = 2.5, // Tăng kích thước sao
-  connectionDistance = 100,
-  connectionOpacity = 0.15,
-  showSolarSystem = true
-}) => {
+const StarBackground: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let width = window.innerWidth;
     let height = window.innerHeight;
-    
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    ctx.scale(dpr, dpr);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
+    let stars: Star[] = [];
+    let animationFrameId = 0;
 
-    const stars: Star[] = [];
-    const planets: Planet[] = [];
-
-    // Brighter planet colors
-    const planetColors = ['#38bdf8', '#a855f7', '#22d3ee', '#f0f9ff'];
-
-    // Initialize stars
-    const initStars = () => {
-      stars.length = 0;
-      for (let i = 0; i < starCount; i++) {
-        stars.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          vx: (Math.random() - 0.5) * speedFactor,
-          vy: (Math.random() - 0.5) * speedFactor,
-          size: Math.random() * starSize + 0.5,
-          opacity: Math.random() * 0.7 + 0.3, // Sáng hơn (min 0.3)
-          twinkleSpeed: Math.random() * 0.02 + 0.005
-        });
-      }
+    const createStars = () => {
+      const count = Math.min(180, Math.max(80, Math.round((width * height) / 11000)));
+      stars = Array.from({ length: count }, (_, index) => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: index % 23 === 0 ? Math.random() * 1.1 + 1 : Math.random() * 0.75 + 0.25,
+        opacity: Math.random() * 0.46 + 0.18,
+        phase: Math.random() * Math.PI * 2,
+        pulse: Math.random() * 0.35 + 0.12,
+        tint: index % 11 === 0 ? 'cyan' : 'white'
+      }));
     };
 
-    // Initialize planets
-    const initPlanets = () => {
-      planets.length = 0;
-      if (!showSolarSystem) return;
-
-      const baseRadius = Math.min(width, height) * 0.15;
-      const numPlanets = 4;
-
-      for (let i = 0; i < numPlanets; i++) {
-        planets.push({
-          orbitRadius: baseRadius + (i * 60), 
-          angle: Math.random() * Math.PI * 2,
-          speed: (0.002 - (i * 0.0003)) * (Math.random() > 0.5 ? 1 : -1), 
-          size: Math.random() * 3 + 3, // Planet to hơn chút
-          color: planetColors[i % planetColors.length] ?? '#38bdf8'
-        });
-      }
-    };
-
-    initStars();
-    initPlanets();
-
-    let animationFrameId: number;
-    let time = 0;
-
-    const animate = () => {
-      ctx.clearRect(0, 0, width, height);
-      time += 0.005;
-      
-      const centerX = width / 2;
-      const centerY = height / 2;
-
-      // --- 1. Draw Solar System & Center Glow ---
-      if (showSolarSystem) {
-        // Central Bright Glow (Galaxy Core)
-        const sunGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 300);
-        sunGradient.addColorStop(0, 'rgba(56, 189, 248, 0.15)'); 
-        sunGradient.addColorStop(0.5, 'rgba(168, 85, 247, 0.05)');
-        sunGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = sunGradient;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 300, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw Orbits and Planets
-        planets.forEach(planet => {
-          planet.angle += planet.speed;
-
-          // Orbit Line
-          ctx.beginPath();
-          ctx.arc(centerX, centerY, planet.orbitRadius, 0, Math.PI * 2);
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; // Line sáng hơn
-          ctx.lineWidth = 1;
-          ctx.stroke();
-
-          // Planet Position
-          const px = centerX + Math.cos(planet.angle) * planet.orbitRadius;
-          const py = centerY + Math.sin(planet.angle) * planet.orbitRadius;
-
-          // Planet Body
-          ctx.beginPath();
-          ctx.arc(px, py, planet.size, 0, Math.PI * 2);
-          ctx.fillStyle = planet.color;
-          ctx.fill();
-          
-          // Planet Glow
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = planet.color;
-          ctx.fill();
-          ctx.shadowBlur = 0; 
-        });
-      }
-
-      // --- 2. Draw Stars ---
-      ctx.fillStyle = '#ffffff';
-      
-      for (const [i, star] of stars.entries()) {
-
-        star.x += star.vx;
-        star.y += star.vy;
-
-        if (star.x < 0) star.x = width;
-        if (star.x > width) star.x = 0;
-        if (star.y < 0) star.y = height;
-        if (star.y > height) star.y = 0;
-
-        // Twinkle
-        star.opacity += Math.sin(time * 10 + i) * star.twinkleSpeed;
-        // Clamp opacity
-        const displayOpacity = Math.max(0.2, Math.min(1, star.opacity));
-
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${displayOpacity})`;
-        ctx.fill();
-      }
-
-      // --- 3. Draw Connections (Constellations) ---
-      // Use simpler brighter lines
-      ctx.lineWidth = 0.8;
-      for (let i = 0; i < stars.length; i++) {
-        for (let j = i + 1; j < stars.length; j++) {
-          const first = stars[i];
-          const second = stars[j];
-          if (!first || !second) continue;
-          const dx = first.x - second.x;
-          const dy = first.y - second.y;
-          
-          if (Math.abs(dx) > connectionDistance || Math.abs(dy) > connectionDistance) continue;
-          
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < connectionDistance) {
-            const alpha = (1 - dist / connectionDistance) * connectionOpacity;
-            ctx.beginPath();
-            ctx.moveTo(first.x, first.y);
-            ctx.lineTo(second.x, second.y);
-            ctx.strokeStyle = `rgba(56, 189, 248, ${alpha})`; // Blue connection
-            ctx.stroke();
-          }
-        }
-      }
-
-      animationFrameId = requestAnimationFrame(animate);
-    };
-
-    animate();
-
-    const handleResize = () => {
+    const resize = () => {
       width = window.innerWidth;
       height = window.innerHeight;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      ctx.scale(dpr, dpr);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
-      
-      initStars();
-      initPlanets(); 
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      createStars();
     };
 
-    window.addEventListener('resize', handleResize);
+    const draw = (timestamp = 0) => {
+      context.clearRect(0, 0, width, height);
+
+      stars.forEach(star => {
+        const twinkle = prefersReducedMotion ? 0 : Math.sin(timestamp * 0.00045 + star.phase) * star.pulse;
+        const alpha = Math.max(0.08, star.opacity + twinkle);
+        context.beginPath();
+        context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+        context.fillStyle = star.tint === 'cyan'
+          ? `rgba(165, 243, 252, ${alpha})`
+          : `rgba(226, 232, 240, ${alpha})`;
+        context.fill();
+      });
+
+      if (!prefersReducedMotion) animationFrameId = requestAnimationFrame(draw);
+    };
+
+    resize();
+    draw();
+    window.addEventListener('resize', resize);
+
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', resize);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [starCount, speedFactor, starSize, connectionDistance, connectionOpacity, showSolarSystem]);
+  }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full pointer-events-none z-0"
-      // Remove opacity restriction on canvas to let full brightness through
-    />
+    <div className="night-atlas fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+      <div className="night-atlas__haze night-atlas__haze--north" />
+      <div className="night-atlas__haze night-atlas__haze--south" />
+      <div className="night-atlas__grid" />
+
+      <svg className="night-atlas__contours" viewBox="0 0 900 560" fill="none" preserveAspectRatio="xMaxYMax slice">
+        <path d="M926 93C786 24 649 45 568 126c-74 74-51 164-139 216-98 58-210-7-319 63-63 41-91 103-101 177" />
+        <path d="M944 145c-124-64-245-45-315 22-63 61-45 137-123 184-92 54-195 4-288 61-53 32-85 82-102 148" />
+        <path d="M949 205c-104-56-204-42-263 12-56 51-43 115-107 156-79 50-168 14-249 59-42 24-75 65-96 119" />
+        <path d="M952 266c-84-48-167-38-217 6-48 42-40 94-91 130-65 44-138 20-205 55-34 18-63 49-84 91" />
+        <path d="M957 328c-66-41-132-34-173 0-39 33-36 76-76 106-51 38-110 24-164 50-27 13-51 35-71 64" />
+      </svg>
+
+      <div className="night-atlas__meridian" />
+      <div className="night-atlas__grain" />
+    </div>
   );
 };
 

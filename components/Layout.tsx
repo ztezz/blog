@@ -173,13 +173,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Background Logic - Hidden on Admin pages to avoid layout clutter */}
       {!isAdminPage && (theme === 'dark' ? <StarBackground /> : <SkyBackground />)}
       
-      {/* Background Layer 2: Cosmic Nebula Glows (Only in Dark Mode) */}
-      <div className={`fixed inset-0 pointer-events-none z-0 overflow-hidden transition-opacity duration-1000 ${theme === 'dark' ? 'opacity-100' : 'opacity-0'}`}>
-         <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-blue-500/20 rounded-full blur-[120px] opacity-60 mix-blend-screen animate-pulse-slow"></div>
-         <div className="absolute bottom-[0%] right-[0%] w-[40%] h-[40%] bg-purple-600/20 rounded-full blur-[100px] opacity-50 mix-blend-screen"></div>
-         <div className="absolute top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[60%] h-[60%] bg-cyan-500/10 rounded-full blur-[150px] opacity-30"></div>
-      </div>
-      
       {/* Header */}
       <header className="fixed w-full z-50 top-0 bg-white/70 dark:bg-slate-900/60 backdrop-blur-lg border-b border-slate-200 dark:border-white/10 shadow-lg transition-all duration-300 supports-[backdrop-filter]:bg-white/40 dark:supports-[backdrop-filter]:bg-slate-900/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

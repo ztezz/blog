@@ -41,6 +41,122 @@ body {
   margin: 0;
 }
 
+.night-atlas {
+  background:
+    radial-gradient(ellipse at 72% -12%, rgba(30, 112, 153, 0.2) 0%, transparent 45%),
+    linear-gradient(152deg, #07111f 0%, #030812 48%, #02050c 100%);
+  isolation: isolate;
+}
+
+.night-atlas canvas {
+  opacity: 0.82;
+}
+
+.night-atlas__haze {
+  position: absolute;
+  filter: blur(80px);
+  opacity: 0.42;
+  transform: rotate(-12deg);
+  will-change: transform;
+}
+
+.night-atlas__haze--north {
+  top: 8%;
+  left: -12%;
+  width: 74%;
+  height: 18%;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.34), rgba(45, 212, 191, 0.14), transparent);
+  animation: atlas-drift 22s ease-in-out infinite alternate;
+}
+
+.night-atlas__haze--south {
+  right: -20%;
+  bottom: 3%;
+  width: 68%;
+  height: 22%;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.2), rgba(14, 165, 233, 0.14), transparent);
+  animation: atlas-drift 28s ease-in-out -8s infinite alternate-reverse;
+}
+
+.night-atlas__grid {
+  position: absolute;
+  inset: 45% -12% -30%;
+  opacity: 0.1;
+  transform: perspective(520px) rotateX(62deg) rotateZ(-7deg);
+  transform-origin: center top;
+  background-image:
+    linear-gradient(rgba(125, 211, 252, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.35) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, transparent, black 20%, transparent 88%);
+}
+
+.night-atlas__contours {
+  position: absolute;
+  right: -4%;
+  bottom: -5%;
+  width: min(72rem, 88vw);
+  height: min(44rem, 72vh);
+  opacity: 0.13;
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.18));
+}
+
+.night-atlas__contours path {
+  stroke: #a5f3fc;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.night-atlas__meridian {
+  position: absolute;
+  top: -35%;
+  right: -13%;
+  width: 38vw;
+  min-width: 25rem;
+  aspect-ratio: 1;
+  border-left: 1px solid rgba(125, 211, 252, 0.09);
+  border-radius: 50%;
+  transform: rotate(18deg);
+}
+
+.night-atlas__grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+@keyframes atlas-drift {
+  from { transform: translate3d(-2%, -2%, 0) rotate(-12deg) scale(0.96); }
+  to { transform: translate3d(7%, 7%, 0) rotate(-8deg) scale(1.06); }
+}
+
+@media (max-width: 640px) {
+  .night-atlas__haze--north {
+    top: 13%;
+    width: 110%;
+    height: 15%;
+  }
+
+  .night-atlas__grid {
+    inset: 52% -40% -25%;
+    background-size: 48px 48px;
+  }
+
+  .night-atlas__contours {
+    right: -32%;
+    width: 145vw;
+    opacity: 0.1;
+  }
+
+  .night-atlas__meridian {
+    right: -65%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
