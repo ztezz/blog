@@ -210,7 +210,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {!isAdminPage && (theme === 'dark' ? <StarBackground /> : <SkyBackground />)}
       
       {/* Header */}
-      <header className={`fixed top-0 z-50 w-full border-b transition-all duration-300 ${isCompact ? 'border-slate-200 bg-white/90 shadow-md dark:border-white/10 dark:bg-slate-950/90' : 'border-slate-200/80 bg-white/70 shadow-sm dark:border-white/10 dark:bg-slate-900/60'} backdrop-blur-lg`}>
+      <header className={`fixed top-0 z-50 w-full border-b transition-colors duration-200 ${isCompact ? 'border-slate-200 bg-white shadow-md dark:border-white/10 dark:bg-slate-950' : 'border-slate-200/80 bg-white/95 shadow-sm dark:border-white/10 dark:bg-slate-900/95'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className={`flex items-center justify-between transition-[height] duration-300 ${isCompact ? 'h-16 md:h-[68px]' : 'h-20'}`}>
             {/* Logo */}
@@ -313,7 +313,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </header>
 
       {isMenuOpen && <div className="fixed inset-0 z-[55] md:hidden">
-        <button type="button" className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)} aria-label="Đóng menu" />
+        <button type="button" className="absolute inset-0 bg-slate-950/55" onClick={() => setIsMenuOpen(false)} aria-label="Đóng menu" />
         <aside id="mobile-navigation" className="absolute bottom-0 right-0 top-0 w-[min(88vw,24rem)] overflow-y-auto border-l border-slate-200 bg-white p-5 shadow-2xl dark:border-white/10 dark:bg-slate-950" aria-label="Điều hướng trên thiết bị di động">
           <div className="mb-8 flex items-center justify-between border-b border-slate-200 pb-5 dark:border-white/10">
             <span className="font-display text-lg font-bold tracking-wider text-slate-900 dark:text-white">{settings.siteNamePrefix}<span className="text-sky-600 dark:text-cyan-300">{settings.siteNameSuffix}</span></span>

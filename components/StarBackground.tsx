@@ -69,8 +69,6 @@ const StarBackground: React.FC = () => {
     <div className="night-atlas fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
-      <div className="night-atlas__haze night-atlas__haze--north" />
-      <div className="night-atlas__haze night-atlas__haze--south" />
       <div className="night-atlas__grid" />
 
       <svg className="night-atlas__contours" viewBox="0 0 900 560" fill="none" preserveAspectRatio="xMaxYMax slice">
@@ -82,7 +80,6 @@ const StarBackground: React.FC = () => {
       </svg>
 
       <div className="night-atlas__meridian" />
-      <div className="night-atlas__grain" />
     </div>
   );
 };

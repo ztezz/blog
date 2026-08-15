@@ -49,7 +49,7 @@ const About: React.FC = () => {
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
           <div>
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/70 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-sky-700 shadow-sm backdrop-blur dark:border-cyan-400/25 dark:bg-cyan-400/5 dark:text-cyan-300">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/90 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-sky-700 shadow-sm dark:border-cyan-400/25 dark:bg-slate-900 dark:text-cyan-300">
               <Sparkles size={14} /> Câu chuyện của {siteName}
             </div>
             <h1 className="max-w-3xl font-display text-5xl font-bold leading-[1.02] tracking-[-0.045em] text-slate-950 sm:text-6xl lg:text-7xl dark:text-white">
@@ -63,7 +63,7 @@ const About: React.FC = () => {
               <Link to="/blog" className="group inline-flex items-center justify-center rounded-xl bg-slate-950 px-6 py-3.5 font-bold text-white shadow-xl shadow-slate-900/15 transition hover:-translate-y-0.5 hover:bg-sky-700 dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200">
                 Khám phá nội dung <ArrowRight className="ml-2 transition-transform group-hover:translate-x-1" size={18} />
               </Link>
-              <Link to="/contact" className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white/60 px-6 py-3.5 font-bold text-slate-700 backdrop-blur transition hover:-translate-y-0.5 hover:border-sky-400 hover:text-sky-700 dark:border-white/15 dark:bg-white/5 dark:text-white dark:hover:border-cyan-300/50 dark:hover:text-cyan-300">
+              <Link to="/contact" className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white/90 px-6 py-3.5 font-bold text-slate-700 transition hover:-translate-y-0.5 hover:border-sky-400 hover:text-sky-700 dark:border-white/15 dark:bg-slate-900 dark:text-white dark:hover:border-cyan-300/50 dark:hover:text-cyan-300">
                 Kết nối với chúng tôi
               </Link>
             </div>
@@ -83,13 +83,13 @@ const About: React.FC = () => {
                 <span className="absolute bottom-[11%] right-[20%] h-2.5 w-2.5 rounded-full bg-cyan-200 shadow-[0_0_16px_#a5f3fc]" />
                 <span className="absolute right-[-7px] top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-slate-800 shadow-xl"><RadioTower className="text-amber-300" size={18} /></span>
               </div>
-              <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/70 px-4 py-3 text-xs text-slate-300 backdrop-blur sm:bottom-8 sm:left-8 sm:right-8"><span className="flex items-center gap-2"><Map className="text-cyan-300" size={15} /> Từ lớp dữ liệu</span><ArrowRight className="text-slate-500" size={15} /><span>đến hiểu biết</span></div>
+              <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/90 px-4 py-3 text-xs text-slate-300 sm:bottom-8 sm:left-8 sm:right-8"><span className="flex items-center gap-2"><Map className="text-cyan-300" size={15} /> Từ lớp dữ liệu</span><ArrowRight className="text-slate-500" size={15} /><span>đến hiểu biết</span></div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="border-y border-slate-200 bg-white/65 px-4 py-20 backdrop-blur dark:border-white/10 dark:bg-slate-900/55 sm:px-6 lg:px-8 lg:py-24" aria-labelledby="about-story-title">
+      <section className="border-y border-slate-200 bg-white/95 px-4 py-20 dark:border-white/10 dark:bg-slate-900/95 sm:px-6 lg:px-8 lg:py-24" aria-labelledby="about-story-title">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-16">
           <div className="lg:sticky lg:top-28 lg:self-start">
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-sky-700 dark:text-cyan-300">Bản tuyên ngôn</p>
@@ -109,7 +109,7 @@ const About: React.FC = () => {
           <div className="mb-10 max-w-2xl"><p className="text-sm font-bold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">Hệ quy chiếu chung</p><h2 id="principles-title" className="mt-3 font-display text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl dark:text-white">Ba nguyên tắc dẫn đường</h2></div>
           <div className="grid gap-5 md:grid-cols-3">
             {principles.map(({ number, title, description, icon: Icon, accent }) => (
-              <article key={number} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/75 p-6 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-white/[0.045] sm:p-7">
+              <article key={number} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-white/10 dark:bg-slate-900/90 sm:p-7">
                 <span className="absolute right-5 top-4 font-mono text-xs text-slate-300 dark:text-slate-600">{number}</span>
                 <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${principleAccent[accent]}`}><Icon size={21} /></span>
                 <h3 className="mt-8 font-display text-xl font-bold text-slate-900 dark:text-white">{title}</h3>

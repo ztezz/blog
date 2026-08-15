@@ -50,7 +50,7 @@ const Contact: React.FC = () => {
           {/* Info Side (Dynamic) */}
           <div className="space-y-8">
             <div 
-              className="bg-white/90 dark:bg-slate-900/50 p-8 rounded-2xl border border-white/40 dark:border-white/10 backdrop-blur-md shadow-lg
+              className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-white/40 dark:border-white/10 shadow-lg
                         prose prose-lg max-w-none 
                         text-slate-700 dark:text-gray-100
                         prose-headings:text-slate-900 dark:prose-headings:text-white
@@ -72,7 +72,7 @@ const Contact: React.FC = () => {
             >
             </div>
 
-            <div className="bg-gradient-to-r from-sky-100 to-purple-100 dark:from-cyan-400/20 dark:to-purple-400/20 p-8 rounded-2xl border border-white/40 dark:border-white/5 backdrop-blur-sm shadow-sm">
+            <div className="bg-gradient-to-r from-sky-100 to-purple-100 dark:from-cyan-400/20 dark:to-purple-400/20 p-8 rounded-2xl border border-white/40 dark:border-white/5 shadow-sm">
               <p className="text-slate-700 dark:text-gray-300 italic font-medium">
                 "Bản đồ không phải là lãnh thổ, nhưng là công cụ tốt nhất để chúng ta không bị lạc lối giữa những vì sao."
               </p>
@@ -80,7 +80,7 @@ const Contact: React.FC = () => {
           </div>
 
           {/* Form Side */}
-          <div className="bg-white dark:bg-slate-800 p-8 md:p-10 rounded-2xl border border-slate-100 dark:border-white/10 shadow-2xl backdrop-blur-xl">
+          <div className="bg-white dark:bg-slate-800 p-8 md:p-10 rounded-2xl border border-slate-100 dark:border-white/10 shadow-2xl">
             {isSubmitted ? (
               <div className="h-full flex flex-col items-center justify-center text-center py-10">
                 <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-6">

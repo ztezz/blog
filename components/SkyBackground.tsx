@@ -3,9 +3,6 @@ import React from 'react';
 const SkyBackground: React.FC = () => {
   return (
     <div className="day-atlas fixed inset-0 z-0 overflow-hidden pointer-events-none" aria-hidden="true">
-      <div className="day-atlas__light" />
-      <div className="day-atlas__wash day-atlas__wash--west" />
-      <div className="day-atlas__wash day-atlas__wash--east" />
       <div className="day-atlas__grid" />
 
       <svg className="day-atlas__contours" viewBox="0 0 900 620" fill="none" preserveAspectRatio="xMinYMax slice">
@@ -18,7 +15,6 @@ const SkyBackground: React.FC = () => {
 
       <div className="day-atlas__coordinate day-atlas__coordinate--one" />
       <div className="day-atlas__coordinate day-atlas__coordinate--two" />
-      <div className="day-atlas__grain" />
     </div>
   );
 };
